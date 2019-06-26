@@ -4,6 +4,7 @@
 // tmpl/gk.json.tmpl
 // tmpl/partials/constants.tmpl
 // tmpl/partials/endpoint_func.tmpl
+// tmpl/partials/endpoint_method_func.tmpl
 // tmpl/partials/func.tmpl
 // tmpl/partials/func_parameters.tmpl
 // tmpl/partials/func_results.tmpl
@@ -103,12 +104,12 @@ func tmplFileTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/file.tmpl", size: 619, mode: os.FileMode(420), modTime: time.Unix(1504865587, 0)}
+	info := bindataFileInfo{name: "tmpl/file.tmpl", size: 619, mode: os.FileMode(420), modTime: time.Unix(1561447542, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
 
-var _tmplGkJsonTmpl = "\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\xb4\x90\xbd\x6e\x83\x30\x10\x80\x77\x9e\xc2\xf2\x5c\xf1\x00\xac\x91\x3a\x76\x21\x9d\x93\x2b\x3e\x82\x15\xfc\xa3\xf3\xd1\xaa\xb2\xfc\xee\x15\x05\x43\xad\xa2\xaa\x4b\x46\x38\xdf\xf7\x7d\xba\x58\x09\x21\x03\xd2\xbb\xee\x50\x36\xf3\x97\x10\xd2\x03\x0f\xb2\x91\x31\x5e\x63\x64\xd7\x5a\xb8\xe3\x09\x02\x8a\xba\x5d\x1e\xbe\x80\xc1\x94\xae\x29\xc5\xd8\xeb\x11\x5b\xf4\x40\xc0\x8e\x52\xf2\xf7\xdb\xaf\x7f\x99\xfe\xb4\xc0\xe7\xe9\xc5\x82\x41\xd9\x64\x71\x7d\x73\x79\xaa\x2d\x23\xf5\xd0\x6d\x4f\xd6\x88\x57\xef\x91\x9e\x35\x05\x3e\x81\xc1\xf1\x38\xa7\x2d\x4d\x81\x69\xea\x78\x73\xf1\xf4\xb6\xc2\xfe\x81\xa8\x84\x48\x33\x46\x1a\xad\xd4\x88\x1f\x40\xfb\x79\x56\xe0\x3e\x99\xfb\xb7\x05\xb4\xca\x3b\x6d\x39\x3c\xe8\x9c\x3b\xff\xe0\xa0\xdb\xb0\x48\x62\x02\x1b\xbc\x23\x7e\x50\xd2\x37\xa6\x3e\x67\xcb\xf9\xd3\x2f\xcb\x47\x85\x03\x58\x35\x22\x15\x7d\x9d\x51\x6b\x59\x0e\xeb\x8c\x3a\xb6\xfc\x19\xbb\xf8\x0a\x9d\x01\x6d\x0b\x97\xc2\x1e\xa6\x91\x2f\x3f\x6e\x22\x07\x66\x2f\xab\xf4\x15\x00\x00\xff\xff\xb7\x1a\x18\xd3\x0c\x03\x00\x00"
+var _tmplGkJsonTmpl = "\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\xb4\x90\xb1\x6e\xc3\x20\x10\x86\xf7\x3c\x05\x62\xae\xfc\x00\x5e\x23\x75\xec\xe2\x74\x4e\xae\xe6\x9c\xa0\x18\x8c\x8e\x73\xab\x0a\xf1\xee\x15\xb5\xc1\xa5\xf2\x50\x55\xca\x88\x7e\xee\xfb\x3f\xfd\xe1\x20\x84\xf4\x48\xef\xba\x47\xd9\xa6\x97\x10\xd2\x01\xdf\x64\x2b\xdd\xfd\x1a\xc2\xa0\x47\xec\xd0\x01\x01\x4f\x14\x63\x08\x97\x10\x78\xea\x2c\xdc\xf1\x08\x1e\x45\xd3\x2d\xc7\x2f\x60\x30\xc6\x4b\xfa\xf1\xeb\x24\xd3\x9f\x16\x78\x4a\xcf\x16\x0c\xca\x36\x17\x37\xd7\x29\xa7\xda\x32\xd2\x00\x7d\xf9\xb2\x16\xbe\x3a\x87\xf4\xac\xc9\xf3\x11\x0c\x8e\xfb\xd5\x5d\xdd\xe4\x99\xe6\x9e\x4b\x17\xcf\x6f\x2b\xec\x0f\x88\x83\x10\x31\x61\xa4\xd1\x4a\x8d\xf8\x01\xb4\xcd\xb3\x02\xb7\x24\xf9\x97\x03\xb4\xca\x4d\xda\xb2\x7f\xd0\x9c\x1b\x7f\x67\xd0\x12\x56\x4a\x4c\x60\xbd\x9b\x88\x1f\xa4\x54\xf8\xbb\x4e\xdf\xc0\xe6\x94\xff\x9c\x3e\xdd\x82\xa9\x14\x7b\xa3\x56\xb9\xec\xd6\x1b\xf5\x0f\xb7\x45\xa0\xea\x37\xa0\x6d\xd5\xa5\x70\x80\x79\xe4\xf3\x8f\x59\xe4\x8d\xd9\xc9\x43\xfc\x0a\x00\x00\xff\xff\xac\x79\x54\xd8\x0f\x03\x00\x00"
 
 func tmplGkJsonTmplBytes() ([]byte, error) {
 	return bindataRead(
@@ -123,7 +124,7 @@ func tmplGkJsonTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/gk.json.tmpl", size: 780, mode: os.FileMode(420), modTime: time.Unix(1504865587, 0)}
+	info := bindataFileInfo{name: "tmpl/gk.json.tmpl", size: 783, mode: os.FileMode(420), modTime: time.Unix(1561557967, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -143,7 +144,7 @@ func tmplPartialsConstantsTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/partials/constants.tmpl", size: 126, mode: os.FileMode(420), modTime: time.Unix(1504766244, 0)}
+	info := bindataFileInfo{name: "tmpl/partials/constants.tmpl", size: 126, mode: os.FileMode(420), modTime: time.Unix(1561447542, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -163,7 +164,27 @@ func tmplPartialsEndpoint_funcTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/partials/endpoint_func.tmpl", size: 633, mode: os.FileMode(420), modTime: time.Unix(1504865587, 0)}
+	info := bindataFileInfo{name: "tmpl/partials/endpoint_func.tmpl", size: 633, mode: os.FileMode(420), modTime: time.Unix(1561447542, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _tmplPartialsEndpoint_method_funcTmpl = "\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\x6c\x90\xc1\x6a\xf3\x30\x10\x84\xcf\xd6\x53\xcc\x0f\x3a\xd8\x60\x04\xff\x35\x90\x53\x69\x8f\xa5\x04\xda\xbb\xa8\x37\x41\xe0\xac\xdd\x95\x1c\x02\x8b\xde\xbd\xc8\x51\x7c\x28\x3e\x49\x48\x33\xb3\xf3\xad\x01\x00\xa1\x38\xf7\x20\x11\x1c\x8e\x20\xa7\xea\x5e\xfc\x38\x06\xbe\xb8\x77\x7f\xa5\x9c\x5f\x79\x98\xa7\xc0\xa9\xfd\x4e\xf7\x1e\xaa\xee\x44\x3f\x0b\xc5\x54\xbf\x15\xaa\xe2\xf9\x42\xb0\xa1\xb7\xb7\x12\x62\x37\xc9\x97\x97\x98\xb3\x6a\x9a\x3e\xe7\x99\xe4\x2d\x48\x4c\xb0\xb7\x6a\x3d\xa8\xa2\x0d\x3c\xd0\x1d\x76\x1b\xfa\xe1\xc5\x5f\x29\x91\x44\xb4\x7e\x18\x60\x03\xfe\x77\xdd\xea\x40\x89\x0a\x67\xf0\x94\xd0\x8e\xbe\x44\x85\x3f\xc3\xba\x9c\x7b\x55\xe2\xa1\x48\xd7\x03\xb9\x33\x4d\x38\xaf\x80\xff\x8e\xe0\x30\x42\x4d\xd3\x08\xa5\x45\xd8\x34\xd9\x34\x65\x01\x13\x47\x2a\xd5\xcb\xdd\xb5\x2b\xe4\xe3\xb1\x56\xed\x4c\x75\xec\xd3\x56\xed\x03\xf7\x99\xe7\x54\x37\xd4\xbd\xde\x4f\xe2\x13\xc5\x65\x4c\x3b\xd5\x7f\x03\x00\x00\xff\xff\xe0\x99\x34\x6c\x9f\x01\x00\x00"
+
+func tmplPartialsEndpoint_method_funcTmplBytes() ([]byte, error) {
+	return bindataRead(
+		_tmplPartialsEndpoint_method_funcTmpl,
+		"tmpl/partials/endpoint_method_func.tmpl",
+	)
+}
+
+func tmplPartialsEndpoint_method_funcTmpl() (*asset, error) {
+	bytes, err := tmplPartialsEndpoint_method_funcTmplBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "tmpl/partials/endpoint_method_func.tmpl", size: 415, mode: os.FileMode(420), modTime: time.Unix(1561541887, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -183,7 +204,7 @@ func tmplPartialsFuncTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/partials/func.tmpl", size: 208, mode: os.FileMode(420), modTime: time.Unix(1504866219, 0)}
+	info := bindataFileInfo{name: "tmpl/partials/func.tmpl", size: 208, mode: os.FileMode(420), modTime: time.Unix(1561447542, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -203,7 +224,7 @@ func tmplPartialsFunc_parametersTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/partials/func_parameters.tmpl", size: 80, mode: os.FileMode(420), modTime: time.Unix(1504766244, 0)}
+	info := bindataFileInfo{name: "tmpl/partials/func_parameters.tmpl", size: 80, mode: os.FileMode(420), modTime: time.Unix(1561447542, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -223,7 +244,7 @@ func tmplPartialsFunc_resultsTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/partials/func_results.tmpl", size: 108, mode: os.FileMode(420), modTime: time.Unix(1504766244, 0)}
+	info := bindataFileInfo{name: "tmpl/partials/func_results.tmpl", size: 108, mode: os.FileMode(420), modTime: time.Unix(1561447542, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -243,7 +264,7 @@ func tmplPartialsFunc_returnTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/partials/func_return.tmpl", size: 68, mode: os.FileMode(420), modTime: time.Unix(1504766244, 0)}
+	info := bindataFileInfo{name: "tmpl/partials/func_return.tmpl", size: 68, mode: os.FileMode(420), modTime: time.Unix(1561447542, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -263,7 +284,7 @@ func tmplPartialsImportsTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/partials/imports.tmpl", size: 109, mode: os.FileMode(420), modTime: time.Unix(1504766244, 0)}
+	info := bindataFileInfo{name: "tmpl/partials/imports.tmpl", size: 109, mode: os.FileMode(420), modTime: time.Unix(1561447542, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -283,7 +304,7 @@ func tmplPartialsInterfaceTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/partials/interface.tmpl", size: 136, mode: os.FileMode(420), modTime: time.Unix(1504865587, 0)}
+	info := bindataFileInfo{name: "tmpl/partials/interface.tmpl", size: 136, mode: os.FileMode(420), modTime: time.Unix(1561447542, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -303,7 +324,7 @@ func tmplPartialsInterface_funcTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/partials/interface_func.tmpl", size: 89, mode: os.FileMode(420), modTime: time.Unix(1504766244, 0)}
+	info := bindataFileInfo{name: "tmpl/partials/interface_func.tmpl", size: 89, mode: os.FileMode(420), modTime: time.Unix(1561447542, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -323,7 +344,7 @@ func tmplPartialsInterface_stubTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/partials/interface_stub.tmpl", size: 93, mode: os.FileMode(420), modTime: time.Unix(1504766244, 0)}
+	info := bindataFileInfo{name: "tmpl/partials/interface_stub.tmpl", size: 93, mode: os.FileMode(420), modTime: time.Unix(1561447542, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -343,12 +364,12 @@ func tmplPartialsStructTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/partials/struct.tmpl", size: 121, mode: os.FileMode(420), modTime: time.Unix(1504866211, 0)}
+	info := bindataFileInfo{name: "tmpl/partials/struct.tmpl", size: 121, mode: os.FileMode(420), modTime: time.Unix(1561447542, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
 
-var _tmplPartialsStruct_functionTmpl = "\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\x54\xce\xc1\x4e\x86\x30\x10\x04\xe0\xbb\x4f\x31\xe9\x09\x2e\x8d\xcf\xa0\x77\x0f\xea\x9d\x10\xd8\x1a\x92\xb6\x60\xd9\x1e\xc8\x66\xde\xdd\x14\x54\xf2\x9f\xda\x99\xec\xe6\x5b\xb3\x25\x20\x0b\xfc\xeb\x9a\x92\x64\x85\x73\xa4\xd9\x5f\x24\x9f\xcc\x24\xcf\x64\xa8\x79\x42\x67\xe6\x3f\xb4\xd4\x49\xfd\xdb\x98\x84\xc4\x5d\x7c\x1e\x9b\x90\x3d\xcc\x54\xd2\x16\x47\x15\xb8\x25\xab\x94\x30\x4e\x32\xb4\x75\x07\x4f\x1a\x2e\x72\x55\x74\xf2\x0d\xff\xb2\xce\x07\x9c\xeb\x4f\xb5\x85\xf6\x91\xb8\xcb\x49\x2f\x01\x5f\x8a\x2e\x4a\x86\x7f\x97\xbd\x46\xdd\x7b\x3c\x93\x45\xb4\x96\xfc\x60\x35\x61\xb8\x7a\xf7\x3f\x7c\xdf\xff\xfb\x80\x3f\x01\x00\x00\xff\xff\x75\x7c\x6a\xc5\xf2\x00\x00\x00"
+var _tmplPartialsStruct_functionTmpl = "\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\x54\x8e\xb1\x6e\x84\x30\x10\x44\xfb\x7c\xc5\xc8\x15\x34\x56\xbe\x21\xe9\x53\x24\xe9\x11\x82\x25\x42\xb2\x0d\x31\xeb\x02\xad\xe6\xdf\x23\x9b\xdc\x9d\xae\xda\x9d\xd1\xec\xbe\x31\x5b\x17\x24\x81\x7f\xdf\x62\x94\xa4\x70\x8e\x34\xbb\xc9\xba\x4b\x9a\xc9\xa5\xa4\x09\x9d\x99\xff\xd2\x5c\x26\xf5\x1f\x63\x14\x12\x0f\xe3\xfb\xdc\x85\xec\x61\xa6\x12\xf7\x30\xaa\xc0\xad\x49\x25\x2f\xe3\x24\x43\x3d\x77\xf0\xa4\xe1\x22\x6e\x8a\x4e\x7e\xe1\xdf\xb6\xf9\x84\x73\x7d\x83\x56\xd1\x88\xe1\x10\xf2\xa5\x25\x7f\x14\x5d\x90\x04\xff\x29\x47\x09\x7a\xf4\x78\x25\xb3\x68\xc9\xe9\x89\x55\x09\xc3\xe5\xbb\x7b\xb8\x3d\x69\xfd\xff\x07\xf8\x17\x00\x00\xff\xff\x61\xb8\x92\x3e\xf1\x00\x00\x00"
 
 func tmplPartialsStruct_functionTmplBytes() ([]byte, error) {
 	return bindataRead(
@@ -363,7 +384,7 @@ func tmplPartialsStruct_functionTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/partials/struct_function.tmpl", size: 242, mode: os.FileMode(420), modTime: time.Unix(1504865587, 0)}
+	info := bindataFileInfo{name: "tmpl/partials/struct_function.tmpl", size: 241, mode: os.FileMode(420), modTime: time.Unix(1561541887, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -383,7 +404,7 @@ func tmplPartialsVarsTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/partials/vars.tmpl", size: 124, mode: os.FileMode(420), modTime: time.Unix(1504766244, 0)}
+	info := bindataFileInfo{name: "tmpl/partials/vars.tmpl", size: 124, mode: os.FileMode(420), modTime: time.Unix(1561447542, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -403,7 +424,7 @@ func tmplProtoPbTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/proto.pb.tmpl", size: 270, mode: os.FileMode(420), modTime: time.Unix(1504865587, 0)}
+	info := bindataFileInfo{name: "tmpl/proto.pb.tmpl", size: 270, mode: os.FileMode(420), modTime: time.Unix(1561447542, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -423,7 +444,7 @@ func tmplProto_compileBatTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/proto_compile.bat.tmpl", size: 320, mode: os.FileMode(420), modTime: time.Unix(1504865587, 0)}
+	info := bindataFileInfo{name: "tmpl/proto_compile.bat.tmpl", size: 320, mode: os.FileMode(420), modTime: time.Unix(1561447542, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -443,7 +464,7 @@ func tmplProto_compileShTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/proto_compile.sh.tmpl", size: 414, mode: os.FileMode(420), modTime: time.Unix(1504865587, 0)}
+	info := bindataFileInfo{name: "tmpl/proto_compile.sh.tmpl", size: 414, mode: os.FileMode(420), modTime: time.Unix(1561447542, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -463,7 +484,7 @@ func tmplSvcThriftTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/svc.thrift.tmpl", size: 197, mode: os.FileMode(420), modTime: time.Unix(1504865587, 0)}
+	info := bindataFileInfo{name: "tmpl/svc.thrift.tmpl", size: 197, mode: os.FileMode(420), modTime: time.Unix(1561447542, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -483,7 +504,7 @@ func tmplThrift_compileBatTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/thrift_compile.bat.tmpl", size: 184, mode: os.FileMode(420), modTime: time.Unix(1504865587, 0)}
+	info := bindataFileInfo{name: "tmpl/thrift_compile.bat.tmpl", size: 184, mode: os.FileMode(420), modTime: time.Unix(1561447542, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -503,7 +524,7 @@ func tmplThrift_compileShTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tmpl/thrift_compile.sh.tmpl", size: 282, mode: os.FileMode(420), modTime: time.Unix(1504865587, 0)}
+	info := bindataFileInfo{name: "tmpl/thrift_compile.sh.tmpl", size: 282, mode: os.FileMode(420), modTime: time.Unix(1561447542, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -564,6 +585,7 @@ var _bindata = map[string]func() (*asset, error){
 	"tmpl/gk.json.tmpl": tmplGkJsonTmpl,
 	"tmpl/partials/constants.tmpl": tmplPartialsConstantsTmpl,
 	"tmpl/partials/endpoint_func.tmpl": tmplPartialsEndpoint_funcTmpl,
+	"tmpl/partials/endpoint_method_func.tmpl": tmplPartialsEndpoint_method_funcTmpl,
 	"tmpl/partials/func.tmpl": tmplPartialsFuncTmpl,
 	"tmpl/partials/func_parameters.tmpl": tmplPartialsFunc_parametersTmpl,
 	"tmpl/partials/func_results.tmpl": tmplPartialsFunc_resultsTmpl,
@@ -629,6 +651,7 @@ var _bintree = &bintree{nil, map[string]*bintree{
 		"partials": &bintree{nil, map[string]*bintree{
 			"constants.tmpl": &bintree{tmplPartialsConstantsTmpl, map[string]*bintree{}},
 			"endpoint_func.tmpl": &bintree{tmplPartialsEndpoint_funcTmpl, map[string]*bintree{}},
+			"endpoint_method_func.tmpl": &bintree{tmplPartialsEndpoint_method_funcTmpl, map[string]*bintree{}},
 			"func.tmpl": &bintree{tmplPartialsFuncTmpl, map[string]*bintree{}},
 			"func_parameters.tmpl": &bintree{tmplPartialsFunc_parametersTmpl, map[string]*bintree{}},
 			"func_results.tmpl": &bintree{tmplPartialsFunc_resultsTmpl, map[string]*bintree{}},

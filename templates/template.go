@@ -25,6 +25,9 @@ type DefaultEngine struct {
 
 func funcMap() template.FuncMap {
 	return template.FuncMap{
+		"add": func(x, y int) int {
+			return x + y
+		},
 		"last": func(x int, a interface{}) bool {
 			return x == reflect.ValueOf(a).Len()-1
 		},

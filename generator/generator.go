@@ -211,9 +211,17 @@ func (sg *ServiceInitGenerator) Generate(name string) error {
 				exists = true
 			}
 		}
-		m.Comment = fmt.Sprintf(`// Implement the business logic of %s`, m.Name)
 		if !exists {
-			s += "\n" + m.String()
+			x := parser.NewMethodWithComment(
+				m.Name,
+				fmt.Sprintf(`Implement the business logic of %s`, m.Name),
+				parser.NewNameType(strings.ToLower(iface.Name[:2]), "*"+stub.Name),
+				"",
+				m.Parameters,
+				m.Results,
+			)
+
+			s += "\n" + x.String()
 		}
 	}
 	d, err := imports.Process("g", []byte(s), nil)
@@ -254,7 +262,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 	te := template.NewEngine()
 	defaultFs := fs.Get()
 	handlerFile := parser.NewFile()
-	handlerFile.Package = "http"
+	handlerFile.Package = "transports"
 	gosrc := utils.GetGOPATH() + "/src/"
 	gosrc = strings.Replace(gosrc, "\\", "/", -1)
 	pwd, err := os.Getwd()
@@ -274,67 +282,197 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 	}
 	enpointsPath = strings.Replace(enpointsPath, "\\", "/", -1)
 	endpointsImport := projectPath + "/" + enpointsPath
+
+	servicePath, err := te.ExecuteString(viper.GetString("service.path"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+	servicePath = strings.Replace(servicePath, "\\", "/", -1)
+	serviceImport := projectPath + "/" + servicePath
+
 	handlerFile.Imports = []parser.NamedTypeValue{
 		parser.NewNameType("httptransport", "\"github.com/go-kit/kit/transport/http\""),
+		parser.NewNameType("", "\"github.com/go-kit/kit/endpoint\""),
 		parser.NewNameType("", "\""+endpointsImport+"\""),
+		parser.NewNameType("", "\""+serviceImport+"\""),
 	}
 
-	handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
-		"NewHTTPHandler",
-		`NewHTTPHandler returns a handler that makes a set of endpoints available on
+	// NewHTTPHandler
+	{
+		handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
+			"NewHTTPHandler",
+			`NewHTTPHandler returns a handler that makes a set of endpoints available on
 			 predefined paths.`,
-		parser.NamedTypeValue{},
-		"m := http.NewServeMux()",
-		[]parser.NamedTypeValue{
-			parser.NewNameType("endpoints", "endpoints.Endpoints"),
-		},
-		[]parser.NamedTypeValue{
-			parser.NewNameType("", "http.Handler"),
-		},
-	))
-	for _, m := range iface.Methods {
-		handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
-			fmt.Sprintf("Decode%sRequest", m.Name),
-			fmt.Sprintf(`Decode%sRequest is a transport/http.DecodeRequestFunc that decodes a
+			parser.NamedTypeValue{},
+			"m := http.NewServeMux()",
+			[]parser.NamedTypeValue{
+				parser.NewNameType("endpoints", "endpoints.Endpoints"),
+			},
+			[]parser.NamedTypeValue{
+				parser.NewNameType("", "http.Handler"),
+			},
+		))
+		for _, m := range iface.Methods {
+			handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
+				fmt.Sprintf("DecodeHTTP%sRequest", m.Name),
+				fmt.Sprintf(`DecodeHTTP%sRequest is a transport/http.DecodeRequestFunc that decodes a
 					 JSON-encoded request from the HTTP request body. Primarily useful in a server.`,
-				m.Name),
-			parser.NamedTypeValue{},
-			fmt.Sprintf(`req = endpoints.%sRequest{}
-			err = json.NewDecoder(r.Body).Decode(&r)
+					m.Name),
+				parser.NamedTypeValue{},
+				fmt.Sprintf(`var req endpoints.%sRequest
+			err := json.NewDecoder(r.Body).Decode(&req)
 			return req,err`, m.Name),
-			[]parser.NamedTypeValue{
-				parser.NewNameType("_", "context.Context"),
-				parser.NewNameType("r", "*http.Request"),
-			},
-			[]parser.NamedTypeValue{
-				parser.NewNameType("req", "interface{}"),
-				parser.NewNameType("err", "error"),
-			},
-		))
-		handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
-			fmt.Sprintf("Encode%sResponse", m.Name),
-			fmt.Sprintf(`Encode%sResponse is a transport/http.EncodeResponseFunc that encodes
+				[]parser.NamedTypeValue{
+					parser.NewNameType("_", "context.Context"),
+					parser.NewNameType("r", "*http.Request"),
+				},
+				[]parser.NamedTypeValue{
+					parser.NewNameType("", "interface{}"),
+					parser.NewNameType("", "error"),
+				},
+			))
+			handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
+				fmt.Sprintf("EncodeHTTP%sResponse", m.Name),
+				fmt.Sprintf(`EncodeHTTP%sResponse is a transport/http.EncodeResponseFunc that encodes
 				the response as JSON to the response writer. Primarily useful in a server.`, m.Name),
-			parser.NamedTypeValue{},
-			` w.Header().Set("Content-Type", "application/json; charset=utf-8")
-			err = json.NewEncoder(w).Encode(response)
+				parser.NamedTypeValue{},
+				` w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			err := json.NewEncoder(w).Encode(response)
 			return err`,
+				[]parser.NamedTypeValue{
+					parser.NewNameType("_", "context.Context"),
+					parser.NewNameType("w", "http.ResponseWriter"),
+					parser.NewNameType("response", "interface{}"),
+				},
+				[]parser.NamedTypeValue{
+					parser.NewNameType("", "error"),
+				},
+			))
+			handlerFile.Methods[0].Body += "\n" + fmt.Sprintf(`m.Handle("/%s", httptransport.NewServer(
+        endpoints.%sEndpoint,
+        DecodeHTTP%sRequest,
+        EncodeHTTP%sResponse,
+    ))`, utils.ToLowerSnakeCase(m.Name), m.Name, m.Name, m.Name)
+		}
+		handlerFile.Methods[0].Body += "\n" + "return m"
+	}
+
+	// NewHTTPClient
+	{
+		handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
+			"NewHTTPClient",
+			`NewHTTPClient returns an AddService backed by an HTTP server living at the
+			 remote instance. We expect instance to come from a service discovery system,
+			 so likely of the form "host:port". We bake-in certain middlewares,
+			 implementing the client library pattern.`,
+			parser.NamedTypeValue{},
+			`	// Quickly sanitize the instance string.
+	if !strings.HasPrefix(instance, "http") {
+		instance = "http://" + instance
+	}
+	u, err := url.Parse(instance)
+	if err != nil {
+		return nil, err
+	}
+
+	e := endpoints.Endpoints{}
+
+	// Each individual endpoint is an http/transport.Client (which implements
+	// endpoint.Endpoint) that gets wrapped with various middlewares. If you
+	// made your own client library, you'd do this work there, so your server
+	// could rely on a consistent set of client behavior.`,
 			[]parser.NamedTypeValue{
-				parser.NewNameType("_", "context.Context"),
-				parser.NewNameType("w", "http.ResponseWriter"),
-				parser.NewNameType("response", "interface{}"),
+				parser.NewNameType("instance", "string"),
 			},
 			[]parser.NamedTypeValue{
-				parser.NewNameType("err", "error"),
+				//parser.NewNameType("", utils.ToUpperFirstCamelCase(fmt.Sprintf("service%s%sService", "",name))),
+				parser.NewNameType("", fmt.Sprintf("service.%sService", utils.ToUpperFirstCamelCase(name))),
+				parser.NewNameType("", "error"),
 			},
 		))
-		handlerFile.Methods[0].Body += "\n" + fmt.Sprintf(`m.Handle("/%s", httptransport.NewServer(
-        endpoints.%sEndpoint,
-        Decode%sRequest,
-        Encode%sResponse,
-    ))`, utils.ToLowerSnakeCase(m.Name), m.Name, m.Name, m.Name)
+
+		handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
+			"copyURL",
+			"",
+			parser.NamedTypeValue{},
+			`	next := *base
+	next.Path = path
+	return &next`,
+			[]parser.NamedTypeValue{
+				parser.NewNameType("base", "*url.URL"),
+				parser.NewNameType("path", "string"),
+			},
+			[]parser.NamedTypeValue{
+				parser.NewNameType("", "*url.URL"),
+			},
+		))
+
+		for _, m := range iface.Methods {
+			handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
+				fmt.Sprintf("EncodeHTTP%sRequest", m.Name),
+				fmt.Sprintf(`EncodeHTTP%sRequest is a transport/http.EncodeRequestFunc that
+					 JSON-encodes any request to the request body. Primarily useful in a client.`,
+					m.Name),
+				parser.NamedTypeValue{},
+				`	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(request); err != nil {
+		return err
 	}
-	handlerFile.Methods[0].Body += "\n" + "return m"
+	r.Body = ioutil.NopCloser(&buf)
+	return nil`,
+				[]parser.NamedTypeValue{
+					parser.NewNameType("_", "context.Context"),
+					parser.NewNameType("r", "*http.Request"),
+					parser.NewNameType("request", "interface{}"),
+				},
+				[]parser.NamedTypeValue{
+					parser.NewNameType("err", "error"),
+				},
+			))
+			handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
+				fmt.Sprintf("DecodeHTTP%sResponse", m.Name),
+				fmt.Sprintf(`DecodeHTTP%sResponse is a transport/http.DecodeResponseFunc that decodes a
+				JSON-encoded sum response from the HTTP response body. If the response has a
+			    non-200 status code, we will interpret that as an error and attempt to decode
+			    the specific error message from the response body. Primarily useful in a client.`, m.Name),
+				parser.NamedTypeValue{},
+				fmt.Sprintf(`	if r.StatusCode != http.StatusOK {
+		return nil, errors.New(r.Status)
+	}
+	var resp endpoints.%sResponse
+	err := json.NewDecoder(r.Body).Decode(&resp)
+	return resp, err`, utils.ToUpperFirstCamelCase(m.Name)),
+				[]parser.NamedTypeValue{
+					parser.NewNameType("_", "context.Context"),
+					parser.NewNameType("r", "*http.Response"),
+				},
+				[]parser.NamedTypeValue{
+					parser.NewNameType("", "interface{}"),
+					parser.NewNameType("", "error"),
+				},
+			))
+			handlerFile.Methods[len(iface.Methods)*2+1].Body += "\n" + fmt.Sprintf(`// The %s endpoint is the same thing, with slightly different
+	// middlewares to demonstrate how to specialize per-endpoint.
+var %sEndpoint endpoint.Endpoint
+{
+	%sEndpoint = httptransport.NewClient(
+		"POST",
+		copyURL(u, "/%s"),
+		EncodeHTTP%sRequest,
+		DecodeHTTP%sResponse,
+	).Endpoint()
+}
+e.%sEndpoint = %sEndpoint`, m.Name, utils.ToLowerFirstCamelCase(m.Name), utils.ToLowerFirstCamelCase(m.Name), strings.ToLower(m.Name), m.Name, m.Name, m.Name, utils.ToLowerSnakeCase(m.Name))
+			handlerFile.Methods[len(iface.Methods)*2+1].Body += "\n"
+		}
+		handlerFile.Methods[len(iface.Methods)*2+1].Body += "\n" + `// Returning the endpoint.Set as a service.Service relies on the
+	// endpoint.Set implementing the Service methods. That's just a simple bit
+	// of glue code.
+	return e, nil`
+	}
+
 	path, err := te.ExecuteString(viper.GetString("transport.path"), map[string]string{
 		"ServiceName":   name,
 		"TransportType": "http",
@@ -394,6 +532,8 @@ func (sg *ServiceInitGenerator) generateGRPCTransport(name string, iface *parser
 		"TransportType": "grpc",
 	})
 	path += defaultFs.FilePathSeparator() + "pb"
+	//path = "pb" + defaultFs.FilePathSeparator() + name
+
 	if err != nil {
 		return err
 	}
@@ -403,6 +543,7 @@ func (sg *ServiceInitGenerator) generateGRPCTransport(name string, iface *parser
 	}
 	fname := utils.ToLowerSnakeCase(name)
 	tfile := path + defaultFs.FilePathSeparator() + fname + ".proto"
+	//tfile := "pb" + defaultFs.FilePathSeparator() + name + defaultFs.FilePathSeparator() + fname + ".proto"
 	if b {
 		fex, err := defaultFs.Exists(tfile)
 		if err != nil {
@@ -700,6 +841,21 @@ func (sg *ServiceInitGenerator) generateEndpoints(name string, iface *parser.Int
 				parser.NewNameType("ep", "endpoint.Endpoint"),
 			},
 		))
+
+		tRes, err = te.ExecuteString("{{template \"endpoint_method_func\" .}}", tmplModel)
+		if err != nil {
+			return err
+		}
+		file.Methods = append(file.Methods, parser.NewMethodWithComment(
+			v.Name,
+			fmt.Sprintf(`%s implements the service interface, so Endpoints may be used as a service.
+					  This is primarily useful in the context of a client library.`, v.Name),
+			parser.NewNameType("e", "Endpoints"),
+			tRes,
+			v.Parameters,
+			v.Results,
+		))
+
 		file.Methods[0].Body += "\n" + "ep." + file.Structs[0].Vars[i].Name + " = Make" + v.Name + "Endpoint(svc)"
 	}
 	file.Methods[0].Body += "\n return ep"
@@ -825,7 +981,7 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 	enpointsPath = strings.Replace(enpointsPath, "\\", "/", -1)
 	endpointsImport := projectPath + "/" + enpointsPath
 	handler := parser.NewFile()
-	handler.Package = "grpc"
+	handler.Package = "transports"
 	handler.Imports = []parser.NamedTypeValue{
 		parser.NewNameType("oldcontext", "\"golang.org/x/net/context\""),
 		parser.NewNameType("", "\"context\""),
@@ -928,7 +1084,7 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 	handler.Structs = append(handler.Structs, grpcStruct)
 	fname, err = te.ExecuteString(viper.GetString("transport.file_name"), map[string]string{
 		"ServiceName":   name,
-		"TransportType": "http",
+		"TransportType": "grpc",
 	})
 	if err != nil {
 		return err

@@ -6,3 +6,5 @@ import:
 - package: github.com/spf13/afero
 - package: github.com/spf13/viper
 - package: github.com/alioygur/godash
+- package: github.com/go-kit/kit
+  version: ^0.8.0

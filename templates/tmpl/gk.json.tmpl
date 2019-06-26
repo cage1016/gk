@@ -1,6 +1,6 @@
 {
   "service":{
-    "path":"{{`{{toSnakeCase .ServiceName}}`}}{{fileSeparator}}pkg{{fileSeparator}}service",
+    "path":"pkg{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}{{fileSeparator}}service",
     "file_name":"service.go",
     "interface_name":"{{`{{toUpperFirstCamelCase .ServiceName}}`}}Service",
     "struct_name":"stub{{`{{toCamelCase .ServiceName}}`}}Service"
@@ -9,12 +9,12 @@
     "name":"middleware.go"
   },
   "endpoints":{
-    "path":"{{`{{toSnakeCase .ServiceName}}`}}{{fileSeparator}}pkg{{fileSeparator}}endpoints",
+    "path":"pkg{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}{{fileSeparator}}endpoints",
     "file_name":"endpoints.go"
   },
   "transport":{
-    "path":"{{`{{toSnakeCase .ServiceName}}`}}{{fileSeparator}}pkg{{fileSeparator}}{{`{{.TransportType}}`}}",
-    "file_name":"handler.go"
+    "path":"pkg{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}{{fileSeparator}}transports",
+    "file_name":"{{`{{.TransportType}}`}}.go"
   },
   "cmd":{
    "path":"cmd{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}",

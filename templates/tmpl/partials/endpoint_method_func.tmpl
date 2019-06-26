@@ -1,0 +1,7 @@
+
+    resp, err := e.{{.Calling.Name}}Endpoint(ctx, {{.Request.Name}}{ {{range $i,$v := $.Request.Vars}}{{toUpperFirst $v.Name}}:{{ (index $.Calling.Parameters (add $i 1)).Name }}{{if not (last $i $.Request.Vars)}},{{end}}{{end}} })
+	if err != nil {
+		return
+	}
+	response := resp.({{.Response.Name}})
+	return {{range $i,$v := $.Response.Vars}}response.{{$v.Name}}{{if not (last $i $.Calling.Results)}},{{end}}{{end}}
