@@ -1,0 +1,3 @@
+
+        req := request.({{.Request.Name}})
+        return {{.Response.Name}}{ {{range $i,$v := $.Request.Vars}}{{toUpperFirst $v.Name}}:req.{{$v.Name}}{{if not (last $i $.Request.Vars)}},{{end}}{{end}} }, nil

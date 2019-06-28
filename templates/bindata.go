@@ -15,6 +15,10 @@
 // tmpl/partials/interface_stub.tmpl
 // tmpl/partials/struct.tmpl
 // tmpl/partials/struct_function.tmpl
+// tmpl/partials/transport_grpc_client_decode_func.tmpl
+// tmpl/partials/transport_grpc_client_encode_func.tmpl
+// tmpl/partials/transport_grpc_server_decode_func.tmpl
+// tmpl/partials/transport_grpc_server_encode_func.tmpl
 // tmpl/partials/vars.tmpl
 // tmpl/proto.pb.tmpl
 // tmpl/proto_compile.bat.tmpl
@@ -389,6 +393,86 @@ func tmplPartialsStruct_functionTmpl() (*asset, error) {
 	return a, nil
 }
 
+var _tmplPartialsTransport_grpc_client_decode_funcTmpl = "\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\x64\x8e\x31\x0b\xc2\x30\x10\x85\xf7\xfe\x8a\xa3\x64\x68\xa1\x64\x70\x2c\x38\xea\xe8\x50\xd0\x3d\xe8\xb5\x04\x62\x9a\x5e\xd2\x82\x1c\xf7\xdf\x25\xa5\x16\xd1\x2c\x8f\xdc\x7d\xef\xdd\x2b\x60\x7b\x84\xc1\xbd\xa0\x3d\xc2\x40\xe1\xde\xe5\x8f\xae\x98\x75\x87\xd3\x8c\x31\xe9\x8b\x79\xa2\x48\xfd\x85\xa7\x99\x3c\xac\x44\x0c\xa3\x8f\xb8\x21\x0c\xcc\x64\xfc\x80\xa0\x6c\xa3\x96\x9c\xa8\xf6\x94\x9b\xa1\x28\xc2\x9c\xc6\x6b\x08\x48\x67\x4b\x31\x81\x5a\x36\x6b\xcb\x6c\x7b\xc0\xe9\x33\x81\xf2\x44\x54\x8a\xc4\x44\x07\x24\xaa\xd6\x8a\x9a\x79\x37\xd4\xcc\xe8\x22\x8a\xfc\x6d\x98\xd1\x3f\xb2\xd8\x1e\xfc\x98\xa0\x72\x26\x5f\xb2\x3f\x5d\x6a\x91\x66\x47\x57\x01\x69\xc0\x5b\x57\xbc\x03\x00\x00\xff\xff\xd1\x45\x06\x24\x18\x01\x00\x00"
+
+func tmplPartialsTransport_grpc_client_decode_funcTmplBytes() ([]byte, error) {
+	return bindataRead(
+		_tmplPartialsTransport_grpc_client_decode_funcTmpl,
+		"tmpl/partials/transport_grpc_client_decode_func.tmpl",
+	)
+}
+
+func tmplPartialsTransport_grpc_client_decode_funcTmpl() (*asset, error) {
+	bytes, err := tmplPartialsTransport_grpc_client_decode_funcTmplBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "tmpl/partials/transport_grpc_client_decode_func.tmpl", size: 280, mode: os.FileMode(420), modTime: time.Unix(1561626726, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _tmplPartialsTransport_grpc_client_encode_funcTmpl = "\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\x5c\xcc\x31\xca\xc3\x30\x0c\x05\xe0\x3d\xa7\xd0\xe0\x21\x81\x90\x03\x04\xfe\xf5\x1f\x3b\x14\xda\xdd\x50\xb5\x18\x52\xd9\x91\x9d\x2c\x0f\xdd\xbd\x38\x98\x50\xaa\xe5\x49\xf0\xe9\x75\xd4\x46\x79\xa5\xf9\xaf\xc6\xc6\xb9\x4c\x3d\x30\x5d\xdb\x7e\xf1\x6f\x36\x1b\xbe\x68\xd9\x54\xe8\x10\x39\x45\xc9\xdc\x08\x08\x50\x2f\x2f\x26\x17\x46\xb7\xd7\x3e\x77\xb6\xdc\xbd\x66\x33\xa0\xc4\x5b\x4a\xac\xff\x41\x73\x21\xb7\xb7\xd7\x59\x79\x9d\x80\xf3\x06\xc2\x93\x24\x16\xea\x17\x5f\x5d\xf8\x69\x1a\xcc\x46\x80\xe5\x51\xe9\x11\x64\x23\x49\x58\xba\x4f\x00\x00\x00\xff\xff\x11\x58\x8e\xd7\xd2\x00\x00\x00"
+
+func tmplPartialsTransport_grpc_client_encode_funcTmplBytes() ([]byte, error) {
+	return bindataRead(
+		_tmplPartialsTransport_grpc_client_encode_funcTmpl,
+		"tmpl/partials/transport_grpc_client_encode_func.tmpl",
+	)
+}
+
+func tmplPartialsTransport_grpc_client_encode_funcTmpl() (*asset, error) {
+	bytes, err := tmplPartialsTransport_grpc_client_encode_funcTmplBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "tmpl/partials/transport_grpc_client_encode_func.tmpl", size: 210, mode: os.FileMode(420), modTime: time.Unix(1561624346, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _tmplPartialsTransport_grpc_server_decode_funcTmpl = "\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\x5c\xcc\xb1\x0a\x83\x30\x10\xc6\xf1\xdd\xa7\xb8\x21\x83\x82\xe4\x01\x84\xae\x1d\x3b\x08\xed\x1e\xda\xab\x04\x6c\x4c\x2e\xd1\xe5\xe3\xde\xbd\x28\x41\x4a\x6f\x39\x0e\x7e\xf7\x6f\xa8\x8e\x70\xa2\xe1\x42\x93\xc4\xe7\xc8\xc9\xb6\x80\x1d\x39\xad\x9c\x8b\xbd\xb9\x0f\xab\x76\x3f\xb4\xac\x12\xe8\x10\x39\x2e\x21\x73\x25\x20\x40\x5c\x98\x98\x8c\xef\xcd\xb6\xf7\xcc\x59\x79\x38\xc9\xaa\x40\x59\xee\x31\xb2\x5c\xbd\xe4\x42\x66\xab\xaf\x83\x70\xb2\xc0\x79\x03\xfe\x4d\x61\x29\xd4\xce\x6e\x77\xfe\xaf\xd4\xa9\xf6\x00\x87\xd7\x4e\x8f\x45\xda\x53\xf0\x73\xf3\x0d\x00\x00\xff\xff\x7f\x0c\x8c\x97\xd2\x00\x00\x00"
+
+func tmplPartialsTransport_grpc_server_decode_funcTmplBytes() ([]byte, error) {
+	return bindataRead(
+		_tmplPartialsTransport_grpc_server_decode_funcTmpl,
+		"tmpl/partials/transport_grpc_server_decode_func.tmpl",
+	)
+}
+
+func tmplPartialsTransport_grpc_server_decode_funcTmpl() (*asset, error) {
+	bytes, err := tmplPartialsTransport_grpc_server_decode_funcTmplBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "tmpl/partials/transport_grpc_server_decode_func.tmpl", size: 210, mode: os.FileMode(420), modTime: time.Unix(1561627628, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _tmplPartialsTransport_grpc_server_encode_funcTmpl = "\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\x64\x8e\x31\x0b\xc2\x30\x10\x85\xf7\xfe\x8a\xa3\x64\x68\xa1\x64\x70\x2c\x38\xea\xe8\x50\xd0\x3d\xe8\xb5\x04\x62\x9a\x5e\xd2\x82\x1c\xf7\xdf\x25\xa5\x16\xd1\x2c\x8f\xdc\x7d\xef\xdd\x2b\x60\x7b\x84\xc1\xbd\xa0\x3d\xc2\x40\xe1\xde\xe5\x8f\xae\x98\x75\x87\xd3\x8c\x31\xe9\x8b\x79\xa2\x48\xfd\x85\xa7\x99\x3c\xac\x44\x0c\xa3\x8f\xb8\x21\x0c\xcc\x64\xfc\x80\xa0\x6c\xa3\x96\x9c\xa8\xf6\x94\x9b\xa1\x28\xc2\x9c\xc6\x6b\x08\x48\x67\x4b\x31\x81\x5a\x36\x6b\xcb\x6c\x7b\xc0\xe9\x33\x81\xf2\x44\x54\x8a\x20\xd1\x21\x26\xaa\xd6\x8a\x9a\x79\x37\xd4\xcc\xe8\x22\x8a\xfc\x6d\x98\xd1\x3f\xb2\xd8\x1e\xfc\x98\xa0\x72\x26\x5f\xb2\x3f\x5d\x6a\x91\x66\x47\x57\x01\x69\xc0\x5b\x57\xbc\x03\x00\x00\xff\xff\x70\x5e\xc5\xa5\x18\x01\x00\x00"
+
+func tmplPartialsTransport_grpc_server_encode_funcTmplBytes() ([]byte, error) {
+	return bindataRead(
+		_tmplPartialsTransport_grpc_server_encode_funcTmpl,
+		"tmpl/partials/transport_grpc_server_encode_func.tmpl",
+	)
+}
+
+func tmplPartialsTransport_grpc_server_encode_funcTmpl() (*asset, error) {
+	bytes, err := tmplPartialsTransport_grpc_server_encode_funcTmplBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "tmpl/partials/transport_grpc_server_encode_func.tmpl", size: 280, mode: os.FileMode(420), modTime: time.Unix(1561628250, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
 var _tmplPartialsVarsTmpl = "\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\xaa\xae\xce\x4c\x53\x48\x2f\x51\xd0\xc8\x49\xcd\x53\x50\xd1\x54\x30\xa8\xad\x2d\x4b\x2c\x52\xd0\xa8\xae\x2e\x4a\xcc\x4b\x4f\x55\x50\xc9\xd4\x51\x29\x53\xb0\xb2\x55\x50\xa9\xad\xe5\xaa\xae\x56\x29\xd3\xf3\x4b\xcc\x4d\xad\xad\x55\x00\xb3\x43\x2a\x0b\x20\xec\xcc\x34\x05\x95\x32\x3d\x8f\xc4\xe2\xb0\xc4\x9c\xd2\xd4\xda\x5a\x5b\x88\x3c\x94\x57\x5d\x9d\x9a\x97\x02\xa7\xb8\x34\xa1\x0c\x40\x00\x00\x00\xff\xff\xd8\x54\xdd\xc2\x7c\x00\x00\x00"
 
 func tmplPartialsVarsTmplBytes() ([]byte, error) {
@@ -596,6 +680,10 @@ var _bindata = map[string]func() (*asset, error){
 	"tmpl/partials/interface_stub.tmpl": tmplPartialsInterface_stubTmpl,
 	"tmpl/partials/struct.tmpl": tmplPartialsStructTmpl,
 	"tmpl/partials/struct_function.tmpl": tmplPartialsStruct_functionTmpl,
+	"tmpl/partials/transport_grpc_client_decode_func.tmpl": tmplPartialsTransport_grpc_client_decode_funcTmpl,
+	"tmpl/partials/transport_grpc_client_encode_func.tmpl": tmplPartialsTransport_grpc_client_encode_funcTmpl,
+	"tmpl/partials/transport_grpc_server_decode_func.tmpl": tmplPartialsTransport_grpc_server_decode_funcTmpl,
+	"tmpl/partials/transport_grpc_server_encode_func.tmpl": tmplPartialsTransport_grpc_server_encode_funcTmpl,
 	"tmpl/partials/vars.tmpl": tmplPartialsVarsTmpl,
 	"tmpl/proto.pb.tmpl": tmplProtoPbTmpl,
 	"tmpl/proto_compile.bat.tmpl": tmplProto_compileBatTmpl,
@@ -662,6 +750,10 @@ var _bintree = &bintree{nil, map[string]*bintree{
 			"interface_stub.tmpl": &bintree{tmplPartialsInterface_stubTmpl, map[string]*bintree{}},
 			"struct.tmpl": &bintree{tmplPartialsStructTmpl, map[string]*bintree{}},
 			"struct_function.tmpl": &bintree{tmplPartialsStruct_functionTmpl, map[string]*bintree{}},
+			"transport_grpc_client_decode_func.tmpl": &bintree{tmplPartialsTransport_grpc_client_decode_funcTmpl, map[string]*bintree{}},
+			"transport_grpc_client_encode_func.tmpl": &bintree{tmplPartialsTransport_grpc_client_encode_funcTmpl, map[string]*bintree{}},
+			"transport_grpc_server_decode_func.tmpl": &bintree{tmplPartialsTransport_grpc_server_decode_funcTmpl, map[string]*bintree{}},
+			"transport_grpc_server_encode_func.tmpl": &bintree{tmplPartialsTransport_grpc_server_encode_funcTmpl, map[string]*bintree{}},
 			"vars.tmpl": &bintree{tmplPartialsVarsTmpl, map[string]*bintree{}},
 		}},
 		"proto.pb.tmpl": &bintree{tmplProtoPbTmpl, map[string]*bintree{}},

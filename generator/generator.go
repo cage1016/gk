@@ -179,6 +179,18 @@ func (sg *ServiceInitGenerator) Generate(name string) error {
 	}
 	if !exists {
 		s += "\n" + stub.String()
+
+		stubMethod := parser.NewMethodWithComment(
+			fmt.Sprintf("New%s", utils.ToUpperFirstCamelCase(stub.Name)),
+			fmt.Sprintf(`New%s returns a naïve, stateless implementation of Service.`, utils.ToUpperFirstCamelCase(stub.Name)),
+			parser.NamedTypeValue{},
+			fmt.Sprintf("return &%s{}", stub.Name),
+			[]parser.NamedTypeValue{},
+			[]parser.NamedTypeValue{
+				parser.NewNameType("", iname),
+			},
+		)
+		s += "\n" + stubMethod.String()
 	}
 	exists = false
 	for _, v := range f.Methods {
@@ -464,7 +476,7 @@ var %sEndpoint endpoint.Endpoint
 		DecodeHTTP%sResponse,
 	).Endpoint()
 }
-e.%sEndpoint = %sEndpoint`, m.Name, utils.ToLowerFirstCamelCase(m.Name), utils.ToLowerFirstCamelCase(m.Name), strings.ToLower(m.Name), m.Name, m.Name, m.Name, utils.ToLowerSnakeCase(m.Name))
+e.%sEndpoint = %sEndpoint`, m.Name, utils.ToLowerFirstCamelCase(m.Name), utils.ToLowerFirstCamelCase(m.Name), strings.ToLower(m.Name), m.Name, m.Name, m.Name, utils.ToLowerFirstCamelCase(m.Name))
 			handlerFile.Methods[len(iface.Methods)*2+1].Body += "\n"
 		}
 		handlerFile.Methods[len(iface.Methods)*2+1].Body += "\n" + `// Returning the endpoint.Set as a service.Service relies on the
@@ -531,8 +543,8 @@ func (sg *ServiceInitGenerator) generateGRPCTransport(name string, iface *parser
 		"ServiceName":   name,
 		"TransportType": "grpc",
 	})
-	path += defaultFs.FilePathSeparator() + "pb"
-	//path = "pb" + defaultFs.FilePathSeparator() + name
+	//path += defaultFs.FilePathSeparator() + "pb"
+	path = "pb" + defaultFs.FilePathSeparator() + name
 
 	if err != nil {
 		return err
@@ -542,8 +554,8 @@ func (sg *ServiceInitGenerator) generateGRPCTransport(name string, iface *parser
 		return err
 	}
 	fname := utils.ToLowerSnakeCase(name)
-	tfile := path + defaultFs.FilePathSeparator() + fname + ".proto"
-	//tfile := "pb" + defaultFs.FilePathSeparator() + name + defaultFs.FilePathSeparator() + fname + ".proto"
+	//tfile := path + defaultFs.FilePathSeparator() + fname + ".proto"
+	tfile := "pb" + defaultFs.FilePathSeparator() + name + defaultFs.FilePathSeparator() + fname + ".proto"
 	if b {
 		fex, err := defaultFs.Exists(tfile)
 		if err != nil {
@@ -951,7 +963,8 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 	if err != nil {
 		return err
 	}
-	sfile = path + defaultFs.FilePathSeparator() + "pb" + defaultFs.FilePathSeparator() + utils.ToLowerSnakeCase(name) + ".pb.go"
+	//sfile = path + defaultFs.FilePathSeparator() + "pb" + defaultFs.FilePathSeparator() + utils.ToLowerSnakeCase(name) + ".pb.go"
+	sfile = "pb" + defaultFs.FilePathSeparator() + utils.ToLowerSnakeCase(name) + defaultFs.FilePathSeparator() + utils.ToLowerSnakeCase(name) + ".pb.go"
 	b, err = defaultFs.Exists(sfile)
 	if err != nil {
 		return err
@@ -970,7 +983,8 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 	}
 	pwd = strings.Replace(pwd, "\\", "/", -1)
 	projectPath := strings.Replace(pwd, gosrc, "", 1)
-	pbImport := projectPath + "/" + path + defaultFs.FilePathSeparator() + "pb"
+	//pbImport := projectPath + "/" + path + defaultFs.FilePathSeparator() + "pb"
+	pbImport := projectPath + defaultFs.FilePathSeparator() + "pb" + defaultFs.FilePathSeparator() + utils.ToLowerSnakeCase(name)
 	pbImport = strings.Replace(pbImport, "\\", "/", -1)
 	enpointsPath, err := te.ExecuteString(viper.GetString("endpoints.path"), map[string]string{
 		"ServiceName": name,
@@ -980,107 +994,380 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 	}
 	enpointsPath = strings.Replace(enpointsPath, "\\", "/", -1)
 	endpointsImport := projectPath + "/" + enpointsPath
+
+	servicePath, err := te.ExecuteString(viper.GetString("service.path"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+	servicePath = strings.Replace(servicePath, "\\", "/", -1)
+	serviceImport := projectPath + "/" + servicePath
+
 	handler := parser.NewFile()
 	handler.Package = "transports"
 	handler.Imports = []parser.NamedTypeValue{
 		parser.NewNameType("oldcontext", "\"golang.org/x/net/context\""),
 		parser.NewNameType("", "\"context\""),
 		parser.NewNameType("", "\"errors\""),
+		parser.NewNameType("", "\"google.golang.org/grpc\""),
+		parser.NewNameType("", "\"github.com/go-kit/kit/endpoint\""),
 		parser.NewNameType("", fmt.Sprintf("\"%s\"", pbImport)),
 		parser.NewNameType("", fmt.Sprintf("\"%s\"", endpointsImport)),
+		parser.NewNameType("", fmt.Sprintf("\"%s\"", serviceImport)),
 		parser.NewNameType("grpctransport", "\"github.com/go-kit/kit/transport/grpc\""),
 	}
 	grpcStruct := parser.NewStruct("grpcServer", []parser.NamedTypeValue{})
-	handler.Methods = append(handler.Methods, parser.NewMethodWithComment(
-		"MakeGRPCServer",
-		`MakeGRPCServer makes a set of endpoints available as a gRPC server.`,
-		parser.NamedTypeValue{},
-		`req = &grpcServer{`,
-		[]parser.NamedTypeValue{
-			parser.NewNameType("endpoints", "endpoints.Endpoints"),
-		},
-		[]parser.NamedTypeValue{
-			parser.NewNameType("req", fmt.Sprintf("pb.%sServer", utils.ToUpperFirstCamelCase(name))),
-		},
-	))
-	for _, v := range iface.Methods {
-		grpcStruct.Vars = append(grpcStruct.Vars, parser.NewNameType(
-			utils.ToLowerFirstCamelCase(v.Name),
-			"grpctransport.Handler",
-		))
+
+	// NewGRPCServer
+	{
 		handler.Methods = append(handler.Methods, parser.NewMethodWithComment(
-			"DecodeGRPC"+v.Name+"Request",
-			fmt.Sprintf(
-				`DecodeGRPC%sRequest is a transport/grpc.DecodeRequestFunc that converts a
-				gRPC request to a user-domain request. Primarily useful in a server.
-				TODO: Do not forget to implement the decoder, you can find an example here :
-				https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65`,
-				v.Name,
-			),
+			"MakeGRPCServer",
+			`MakeGRPCServer makes a set of endpoints available as a gRPC server.`,
 			parser.NamedTypeValue{},
-			fmt.Sprintf(`err = errors.New("'%s' Decoder is not impelement")
-			return req, err`, v.Name),
+			`req = &grpcServer{`,
 			[]parser.NamedTypeValue{
-				parser.NewNameType("_", "context.Context"),
-				parser.NewNameType("grpcReq", "interface{}"),
+				parser.NewNameType("endpoints", "endpoints.Endpoints"),
 			},
 			[]parser.NamedTypeValue{
-				parser.NewNameType("req", "interface{}"),
-				parser.NewNameType("err", "error"),
+				parser.NewNameType("req", fmt.Sprintf("pb.%sServer", utils.ToUpperFirstCamelCase(name))),
 			},
 		))
-		handler.Methods = append(handler.Methods, parser.NewMethodWithComment(
-			"EncodeGRPC"+v.Name+"Response",
-			fmt.Sprintf(
-				`EncodeGRPC%sResponse is a transport/grpc.EncodeResponseFunc that converts a
-					user-domain response to a gRPC reply. Primarily useful in a server.
-					TODO: Do not forget to implement the encoder, you can find an example here :
-					https://github.com/go-kit/kit/blob/master/examples/addsvc/transport_grpc.go#L62-L65`,
+		for _, v := range iface.Methods {
+			grpcStruct.Vars = append(grpcStruct.Vars, parser.NewNameType(
+				utils.ToLowerFirstCamelCase(v.Name),
+				"grpctransport.Handler",
+			))
+
+			// DecodeGRPC Request
+			{
+				reqPrams := []parser.NamedTypeValue{}
+				resultPrams := []parser.NamedTypeValue{}
+				for _, p := range v.Parameters {
+					if p.Type != "context.Context" {
+						n := strings.ToUpper(string(p.Name[0])) + p.Name[1:]
+						reqPrams = append(reqPrams, parser.NewNameType(n, p.Type))
+						resultPrams = append(resultPrams, parser.NewNameType(n, p.Type))
+					}
+				}
+				req := parser.NewStructWithComment(
+					fmt.Sprintf("*pb.%sRequest", v.Name),
+					fmt.Sprintf(
+						"endpoints.%sRequest collects the request parameters for the %s method.",
+						v.Name, v.Name,
+					),
+					reqPrams,
+				)
+				res := parser.NewStructWithComment(
+					fmt.Sprintf("endpoints.%sRequest", v.Name),
+					fmt.Sprintf(
+						"&pb.%sRequest collects the response values for the %s method.",
+						v.Name, v.Name,
+					),
+					resultPrams,
+				)
+				tmplModel := map[string]interface{}{
+					"Calling":  v,
+					"Request":  req,
+					"Response": res,
+				}
+				tRes, err := te.ExecuteString("{{template \"transport_grpc_server_decode_func\" .}}", tmplModel)
+				if err != nil {
+					return err
+				}
+				handler.Methods = append(handler.Methods, parser.NewMethodWithComment(
+					"DecodeGRPC"+v.Name+"Request",
+					fmt.Sprintf(
+						`DecodeGRPC%sRequest is a transport/grpc.DecodeRequestFunc that converts a
+				gRPC request to a user-domain request. Primarily useful in a server.`,
+						v.Name,
+					),
+					parser.NamedTypeValue{},
+					tRes,
+					[]parser.NamedTypeValue{
+						parser.NewNameType("_", "context.Context"),
+						parser.NewNameType("grpcReq", "interface{}"),
+					},
+					[]parser.NamedTypeValue{
+						parser.NewNameType("", "interface{}"),
+						parser.NewNameType("", "error"),
+					},
+				))
+			}
+
+			// EncodeGRPC Response
+			{
+				reqPrams := []parser.NamedTypeValue{}
+				resultPrams := []parser.NamedTypeValue{}
+				for _, p := range v.Results {
+					if p.Type != "context.Context" {
+						n := strings.ToUpper(string(p.Name[0])) + p.Name[1:]
+						reqPrams = append(reqPrams, parser.NewNameType(n, p.Type))
+						resultPrams = append(resultPrams, parser.NewNameType(n, p.Type))
+					}
+				}
+				req := parser.NewStructWithComment(
+					fmt.Sprintf("endpoints.%sResponse", v.Name),
+					fmt.Sprintf(
+						"endpoints.%sResponse collects the response values for the %s method.",
+						v.Name, v.Name,
+					),
+					resultPrams,
+				)
+				res := parser.NewStructWithComment(
+					fmt.Sprintf("&pb.%sReply", v.Name),
+					fmt.Sprintf(
+						"&pb.%sReply collects the request parameters for the %s method.",
+						v.Name, v.Name,
+					),
+					reqPrams,
+				)
+				tmplModel := map[string]interface{}{
+					"Calling":  v,
+					"Request":  req,
+					"Response": res,
+				}
+				tRes, err := te.ExecuteString("{{template \"transport_grpc_server_encode_func\" .}}", tmplModel)
+				if err != nil {
+					return err
+				}
+				handler.Methods = append(handler.Methods, parser.NewMethodWithComment(
+					"EncodeGRPC"+v.Name+"Response",
+					fmt.Sprintf(
+						`EncodeGRPC%sResponse is a transport/grpc.EncodeResponseFunc that converts a
+					user-domain response to a gRPC reply. Primarily useful in a server.`,
+						v.Name,
+					),
+					parser.NamedTypeValue{},
+					tRes,
+					[]parser.NamedTypeValue{
+						parser.NewNameType("_", "context.Context"),
+						parser.NewNameType("grpcReply", "interface{}"),
+					},
+					[]parser.NamedTypeValue{
+						parser.NewNameType("res", "interface{}"),
+						parser.NewNameType("err", "error"),
+					},
+				))
+			}
+
+			handler.Methods = append(handler.Methods, parser.NewMethod(
 				v.Name,
-			),
-			parser.NamedTypeValue{},
-			fmt.Sprintf(`err = errors.New("'%s' Encoder is not impelement")
-			return res, err`, v.Name),
-			[]parser.NamedTypeValue{
-				parser.NewNameType("_", "context.Context"),
-				parser.NewNameType("grpcReply", "interface{}"),
-			},
-			[]parser.NamedTypeValue{
-				parser.NewNameType("res", "interface{}"),
-				parser.NewNameType("err", "error"),
-			},
-		))
-		handler.Methods = append(handler.Methods, parser.NewMethod(
-			v.Name,
-			parser.NewNameType("s", "*grpcServer"),
-			fmt.Sprintf(
-				`_, rp, err := s.%s.ServeGRPC(ctx, req)
+				parser.NewNameType("s", "*grpcServer"),
+				fmt.Sprintf(
+					`_, rp, err := s.%s.ServeGRPC(ctx, req)
 					if err != nil {
 						return nil, err
 					}
 					rep = rp.(*pb.%sReply)
 					return rep, err`,
-				utils.ToLowerFirstCamelCase(v.Name),
-				v.Name,
-			),
-			[]parser.NamedTypeValue{
-				parser.NewNameType("ctx", "oldcontext.Context"),
-				parser.NewNameType("req", fmt.Sprintf("*pb.%sRequest", v.Name)),
-			},
-			[]parser.NamedTypeValue{
-				parser.NewNameType("rep", fmt.Sprintf("*pb.%sReply", v.Name)),
-				parser.NewNameType("err", "error"),
-			},
-		))
-		handler.Methods[0].Body += "\n" + fmt.Sprintf(`%s : grpctransport.NewServer(
+					utils.ToLowerFirstCamelCase(v.Name),
+					v.Name,
+				),
+				[]parser.NamedTypeValue{
+					parser.NewNameType("ctx", "oldcontext.Context"),
+					parser.NewNameType("req", fmt.Sprintf("*pb.%sRequest", v.Name)),
+				},
+				[]parser.NamedTypeValue{
+					parser.NewNameType("rep", fmt.Sprintf("*pb.%sReply", v.Name)),
+					parser.NewNameType("err", "error"),
+				},
+			))
+			handler.Methods[0].Body += "\n" + fmt.Sprintf(`%s : grpctransport.NewServer(
 			endpoints.%sEndpoint,
 			DecodeGRPC%sRequest,
 			EncodeGRPC%sResponse,
 		),
 		`, utils.ToLowerFirstCamelCase(v.Name), v.Name, v.Name, v.Name)
-	}
-	handler.Methods[0].Body += `}
+		}
+		handler.Methods[0].Body += `}
 	return req`
+	}
+
+	// NewGRPCClient
+	{
+		handler.Methods = append(handler.Methods, parser.NewMethodWithComment(
+			"NewGRPCClient",
+			`NewGRPCClient returns an AddService backed by a gRPC server at the other end
+						of the conn. The caller is responsible for constructing the conn, and
+						eventually closing the underlying transport. We bake-in certain middlewares,
+						implementing the client library pattern.`,
+			parser.NamedTypeValue{},
+			`e := endpoints.Endpoints{}`,
+			[]parser.NamedTypeValue{
+				parser.NewNameType("conn", "*grpc.ClientConn"),
+			},
+			[]parser.NamedTypeValue{
+				parser.NewNameType("", fmt.Sprintf("service.%sService", utils.ToUpperFirstCamelCase(name))),
+			},
+		))
+
+		for _, v := range iface.Methods {
+			// EncodeGRPC Request
+			{
+				reqPrams := []parser.NamedTypeValue{}
+				resultPrams := []parser.NamedTypeValue{}
+				for _, p := range v.Parameters {
+					if p.Type != "context.Context" {
+						n := strings.ToUpper(string(p.Name[0])) + p.Name[1:]
+						reqPrams = append(reqPrams, parser.NewNameType(n, p.Type))
+						resultPrams = append(resultPrams, parser.NewNameType(n, p.Type))
+					}
+				}
+				req := parser.NewStructWithComment(
+					fmt.Sprintf("endpoints.%sRequest", v.Name),
+					fmt.Sprintf(
+						"endpoints.%sRequest collects the request parameters for the %s method.",
+						v.Name, v.Name,
+					),
+					reqPrams,
+				)
+				res := parser.NewStructWithComment(
+					fmt.Sprintf("&pb.%sRequest", v.Name),
+					fmt.Sprintf(
+						"&pb.%sRequest collects the response values for the %s method.",
+						v.Name, v.Name,
+					),
+					resultPrams,
+				)
+				tmplModel := map[string]interface{}{
+					"Calling":  v,
+					"Request":  req,
+					"Response": res,
+				}
+				tRes, err := te.ExecuteString("{{template \"transport_grpc_client_encode_func\" .}}", tmplModel)
+				if err != nil {
+					return err
+				}
+				handler.Methods = append(handler.Methods, parser.NewMethodWithComment(
+					"EncodeGRPC"+v.Name+"Request",
+					fmt.Sprintf(
+						`EncodeGRPC%sRequest is a transport/grpc.EncodeRequestFunc that converts a
+					user-domain %s request to a gRPC %s request. Primarily useful in a client.`,
+						v.Name, v.Name, v.Name,
+					),
+					parser.NamedTypeValue{},
+					tRes,
+					[]parser.NamedTypeValue{
+						parser.NewNameType("_", "context.Context"),
+						parser.NewNameType("request", "interface{}"),
+					},
+					[]parser.NamedTypeValue{
+						parser.NewNameType("", "interface{}"),
+						parser.NewNameType("", "error"),
+					},
+				))
+			}
+
+			{
+				reqPrams := []parser.NamedTypeValue{}
+				resultPrams := []parser.NamedTypeValue{}
+				for _, p := range v.Results {
+					if p.Type != "context.Context" {
+						n := strings.ToUpper(string(p.Name[0])) + p.Name[1:]
+						reqPrams = append(reqPrams, parser.NewNameType(n, p.Type))
+						resultPrams = append(resultPrams, parser.NewNameType(n, p.Type))
+					}
+				}
+				req := parser.NewStructWithComment(
+					fmt.Sprintf("*pb.%sReply", v.Name),
+					fmt.Sprintf(
+						"*pb.%sReply collects the request parameters for the %s method.",
+						v.Name, v.Name,
+					),
+					reqPrams,
+				)
+				res := parser.NewStructWithComment(
+					fmt.Sprintf("endpoints.%sResponse", v.Name),
+					fmt.Sprintf(
+						"endpoints.%sResponse collects the response values for the %s method.",
+						v.Name, v.Name,
+					),
+					resultPrams,
+				)
+				tmplModel := map[string]interface{}{
+					"Calling":  v,
+					"Request":  req,
+					"Response": res,
+				}
+				tRes, err := te.ExecuteString("{{template \"transport_grpc_client_decode_func\" .}}", tmplModel)
+				if err != nil {
+					return err
+				}
+				handler.Methods = append(handler.Methods, parser.NewMethodWithComment(
+					"DecodeGRPC"+v.Name+"Response",
+					fmt.Sprintf(
+						`DecodeGRPC%sResponse is a transport/grpc.DecodeResponseFunc that converts a
+					gRPC %s reply to a user-domain %s response. Primarily useful in a client.`,
+						v.Name, v.Name, v.Name,
+					),
+					parser.NamedTypeValue{},
+					tRes,
+					[]parser.NamedTypeValue{
+						parser.NewNameType("_", "context.Context"),
+						parser.NewNameType("grpcReply", "interface{}"),
+					},
+					[]parser.NamedTypeValue{
+						parser.NewNameType("", "interface{}"),
+						parser.NewNameType("", "error"),
+					},
+				))
+			}
+
+			handler.Methods[len(iface.Methods)*3+1].Body += "\n\n" + fmt.Sprintf(`// The %s endpoint is the same thing, with slightly different
+	// middlewares to demonstrate how to specialize per-endpoint.
+				var %sEndpoint endpoint.Endpoint
+				{
+					%sEndpoint = grpctransport.NewClient(
+						conn,
+						"pb.%s",
+						"%s",
+						EncodeGRPC%sRequest,
+						DecodeGRPC%sResponse,
+						pb.%sReply{},
+					).Endpoint()
+				}
+				e.%sEndpoint = %sEndpoint`, v.Name, utils.ToLowerFirstCamelCase(v.Name), utils.ToLowerFirstCamelCase(v.Name), utils.ToUpperFirstCamelCase(name),
+				v.Name, v.Name, v.Name, v.Name, v.Name, utils.ToLowerFirstCamelCase(v.Name))
+		}
+		handler.Methods[len(iface.Methods)*3+1].Body += "\n\n" + `return e`
+	}
+
+	// annoying helper functions
+	{
+		handler.Methods = append(handler.Methods, parser.NewMethodWithComment(
+			"str2err",
+			"",
+			parser.NamedTypeValue{},
+			`if s == "" {
+						return nil
+					}
+					return errors.New(s)`,
+			[]parser.NamedTypeValue{
+				parser.NewNameType("s", "string"),
+			},
+			[]parser.NamedTypeValue{
+				parser.NewNameType("", "error"),
+			},
+		))
+
+		handler.Methods = append(handler.Methods, parser.NewMethodWithComment(
+			"err2str",
+			"",
+			parser.NamedTypeValue{},
+			`	if err == nil {
+					return ""
+				}
+				return err.Error()`,
+			[]parser.NamedTypeValue{
+				parser.NewNameType("err", "error"),
+			},
+			[]parser.NamedTypeValue{
+				parser.NewNameType("", "string"),
+			},
+		))
+	}
+
 	handler.Structs = append(handler.Structs, grpcStruct)
 	fname, err = te.ExecuteString(viper.GetString("transport.file_name"), map[string]string{
 		"ServiceName":   name,

@@ -1,0 +1,3 @@
+
+        reply := grpcReply.({{.Request.Name}})
+        return {{.Response.Name}}{ {{range $i,$v := $.Request.Vars}}{{toUpperFirst $v.Name}}:{{if eq $v.Name "Err"}}str2err(reply.{{$v.Name}}){{else}}reply.{{$v.Name}}{{end}}{{if not (last $i $.Request.Vars)}},{{end}}{{end}} }, nil
