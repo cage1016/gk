@@ -6,12 +6,12 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/go-errors/errors"
 	"github.com/kujtimiihoxha/gk/fs"
 	"github.com/kujtimiihoxha/gk/parser"
 	"github.com/kujtimiihoxha/gk/templates"
 	"github.com/kujtimiihoxha/gk/utils"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"golang.org/x/tools/imports"
 )
@@ -275,17 +275,26 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 	defaultFs := fs.Get()
 	handlerFile := parser.NewFile()
 	handlerFile.Package = "transports"
-	gosrc := utils.GetGOPATH() + "/src/"
-	gosrc = strings.Replace(gosrc, "\\", "/", -1)
-	pwd, err := os.Getwd()
-	if err != nil {
-		return err
+
+	//
+	var projectPath string
+	goModPackage := utils.GetModPackage()
+	if goModPackage == "" {
+		gosrc := utils.GetGOPATH() + "/src/"
+		gosrc = strings.Replace(gosrc, "\\", "/", -1)
+		pwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		if viper.GetString("gk_folder") != "" {
+			pwd += "/" + viper.GetString("gk_folder")
+		}
+		pwd = strings.Replace(pwd, "\\", "/", -1)
+		projectPath = strings.Replace(pwd, gosrc, "", 1)
+	} else {
+		projectPath = goModPackage
 	}
-	if viper.GetString("gk_folder") != "" {
-		pwd += "/" + viper.GetString("gk_folder")
-	}
-	pwd = strings.Replace(pwd, "\\", "/", -1)
-	projectPath := strings.Replace(pwd, gosrc, "", 1)
+
 	enpointsPath, err := te.ExecuteString(viper.GetString("endpoints.path"), map[string]string{
 		"ServiceName": name,
 	})
@@ -664,20 +673,28 @@ func (sg *ServiceInitGenerator) generateThriftTransport(name string, iface *pars
 	if err != nil {
 		return err
 	}
-	gosrc := utils.GetGOPATH() + "/src/"
-	gosrc = strings.Replace(gosrc, "\\", "/", -1)
-	pwd, err := os.Getwd()
-	if err != nil {
-		return err
+
+	var projectPath string
+	goModPackage := utils.GetModPackage()
+	if goModPackage == "" {
+		gosrc := utils.GetGOPATH() + "/src/"
+		gosrc = strings.Replace(gosrc, "\\", "/", -1)
+		pwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		if viper.GetString("gk_folder") != "" {
+			pwd += "/" + viper.GetString("gk_folder")
+		}
+		pwd = strings.Replace(pwd, "\\", "/", -1)
+		projectPath = strings.Replace(pwd, gosrc, "", 1)
+		if err != nil {
+			return err
+		}
+	} else {
+		projectPath = goModPackage
 	}
-	if viper.GetString("gk_folder") != "" {
-		pwd += "/" + viper.GetString("gk_folder")
-	}
-	pwd = strings.Replace(pwd, "\\", "/", -1)
-	projectPath := strings.Replace(pwd, gosrc, "", 1)
-	if err != nil {
-		return err
-	}
+
 	pkg := strings.Replace(path, "\\", "/", -1)
 	pkg = projectPath + "/" + pkg
 	if runtime.GOOS == "windows" {
@@ -761,17 +778,26 @@ func (sg *ServiceInitGenerator) generateEndpoints(name string, iface *parser.Int
 				single parameter.`, name),
 			[]parser.NamedTypeValue{}),
 	}
-	gosrc := utils.GetGOPATH() + "/src/"
-	gosrc = strings.Replace(gosrc, "\\", "/", -1)
-	pwd, err := os.Getwd()
-	if err != nil {
-		return err
+
+	//
+	var projectPath string
+	goModPackage := utils.GetModPackage()
+	if goModPackage == "" {
+		gosrc := utils.GetGOPATH() + "/src/"
+		gosrc = strings.Replace(gosrc, "\\", "/", -1)
+		pwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		if viper.GetString("gk_folder") != "" {
+			pwd += "/" + viper.GetString("gk_folder")
+		}
+		pwd = strings.Replace(pwd, "\\", "/", -1)
+		projectPath = strings.Replace(pwd, gosrc, "", 1)
+	} else {
+		projectPath = goModPackage
 	}
-	if viper.GetString("gk_folder") != "" {
-		pwd += "/" + viper.GetString("gk_folder")
-	}
-	pwd = strings.Replace(pwd, "\\", "/", -1)
-	projectPath := strings.Replace(pwd, gosrc, "", 1)
+
 	servicePath, err := te.ExecuteString(viper.GetString("service.path"), map[string]string{
 		"ServiceName": name,
 	})
@@ -972,17 +998,26 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 	if !b {
 		return errors.New("Could not find the compiled pb of the service")
 	}
-	gosrc := utils.GetGOPATH() + "/src/"
-	gosrc = strings.Replace(gosrc, "\\", "/", -1)
-	pwd, err := os.Getwd()
-	if err != nil {
-		return err
+
+	//
+	var projectPath string
+	goModPackage := utils.GetModPackage()
+	if goModPackage == "" {
+		gosrc := utils.GetGOPATH() + "/src/"
+		gosrc = strings.Replace(gosrc, "\\", "/", -1)
+		pwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		if viper.GetString("gk_folder") != "" {
+			pwd += "/" + viper.GetString("gk_folder")
+		}
+		pwd = strings.Replace(pwd, "\\", "/", -1)
+		projectPath = strings.Replace(pwd, gosrc, "", 1)
+	} else {
+		projectPath = goModPackage
 	}
-	if viper.GetString("gk_folder") != "" {
-		pwd += "/" + viper.GetString("gk_folder")
-	}
-	pwd = strings.Replace(pwd, "\\", "/", -1)
-	projectPath := strings.Replace(pwd, gosrc, "", 1)
+
 	//pbImport := projectPath + "/" + path + defaultFs.FilePathSeparator() + "pb"
 	pbImport := projectPath + defaultFs.FilePathSeparator() + "pb" + defaultFs.FilePathSeparator() + utils.ToLowerSnakeCase(name)
 	pbImport = strings.Replace(pbImport, "\\", "/", -1)

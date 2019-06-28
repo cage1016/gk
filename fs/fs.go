@@ -2,7 +2,7 @@ package fs
 
 import (
 	"fmt"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/Songmu/prompter"
 	"github.com/kujtimiihoxha/gk/templates"
 	"github.com/spf13/afero"

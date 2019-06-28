@@ -2,6 +2,7 @@ package utils
 
 import (
 	"github.com/alioygur/godash"
+	"github.com/codeskyblue/go-sh"
 	"github.com/spf13/viper"
 	"os"
 	"path/filepath"
@@ -24,6 +25,19 @@ func ToLowerSnakeCase(s string) string {
 
 func ToCamelCase(s string) string {
 	return godash.ToCamelCase(s)
+}
+
+func GetModPackage() string {
+	o, err := sh.Command("go", "mod", "edit", "-json").
+		Command("grep", "-o", `"Path": "[^"]*`).
+		Command("grep", "-o", `[^\"]*$`).
+		Command("awk", "{print $1; exit}").
+		Command("awk", `{printf "%s", $0}`).Output()
+	if err != nil {
+		return ""
+	} else {
+		return string(o)
+	}
 }
 
 func GetGOPATH() string {

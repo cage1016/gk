@@ -1,7 +1,7 @@
 package parser
 
 import (
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/kujtimiihoxha/gk/templates"
 	"go/format"
 	"golang.org/x/tools/imports"

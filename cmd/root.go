@@ -3,7 +3,7 @@ package cmd
 import (
 	"os"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/kujtimiihoxha/gk/fs"
 	"github.com/kujtimiihoxha/gk/templates"
 	"github.com/spf13/afero"
