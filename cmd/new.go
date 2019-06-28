@@ -7,7 +7,7 @@ import (
 var newCmd = &cobra.Command{
 	Use:     "new",
 	Aliases: []string{"n"},
-	Short:   "A set of generators used to create new services/transports/middlewares",
+	Short:   "A set of generators used to create new cmd/services/transports/middlewares",
 }
 
 func init() {

@@ -6,35 +6,35 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// serviceCmd represents the service command
-var serviceCmd = &cobra.Command{
-	Use:     "service",
-	Short:   "Create the skeleton of a service",
-	Aliases: []string{"s", "svc"},
+// grpc_addCmd represents the grpc_add command
+var cmd_addCmd = &cobra.Command{
+	Use:   "cmd",
+	Short: "Create the skeleton of a service cmd main",
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
-			logrus.Error("You must provide a name for the service")
+			logrus.Error("You must provide the service name")
 			return
 		}
-		gen := generator.NewServiceGenerator()
-		err := gen.Generate(args[0])
+		g := generator.NewCMDGenerator()
+		err := g.Generate(args[0])
 		if err != nil {
 			logrus.Error(err)
+			return
 		}
 	},
 }
 
 func init() {
-	newCmd.AddCommand(serviceCmd)
+	newCmd.AddCommand(cmd_addCmd)
 
 	// Here you will define your flags and configuration settings.
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
-	// serviceCmd.PersistentFlags().String("foo", "", "A help for foo")
+	// grpc_addCmd.PersistentFlags().String("foo", "", "A help for foo")
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
-	// serviceCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// grpc_addCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
 }
