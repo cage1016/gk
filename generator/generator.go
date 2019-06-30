@@ -476,7 +476,404 @@ type MiddlewareGenerator struct {
 }
 
 func (mg *MiddlewareGenerator) Generate(name string) error {
+	g := NewMiddlewareGenerator()
+	te := template.NewEngine()
+	defaultFs := fs.Get()
+
+	sfname, err := te.ExecuteString(viper.GetString("service.file_name"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+
+	spath, err := te.ExecuteString(viper.GetString("service.path"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+
+	epath, err := te.ExecuteString(viper.GetString("endpoints.path"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+
+	sfile := spath + defaultFs.FilePathSeparator() + sfname
+	b, err := defaultFs.Exists(sfile)
+	if err != nil {
+		return err
+	}
+	iname, err := te.ExecuteString(viper.GetString("service.interface_name"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+	if !b {
+		return errors.New(fmt.Sprintf("Service %s was not found", name))
+	}
+	p := parser.NewFileParser()
+	s, err := defaultFs.ReadFile(sfile)
+	if err != nil {
+		return err
+	}
+	f, err := p.Parse([]byte(s))
+	if err != nil {
+		return err
+	}
+	var iface *parser.Interface
+	for _, v := range f.Interfaces {
+		if v.Name == iname {
+			iface = &v
+		}
+	}
+	if iface == nil {
+		return errors.New(fmt.Sprintf("Could not find the service interface in `%s`", sfile))
+	}
+	toKeep := []parser.Method{}
+	for _, v := range iface.Methods {
+		isOk := false
+		for _, p := range v.Parameters {
+			if p.Type == "context.Context" {
+				isOk = true
+				break
+			}
+		}
+		if string(v.Name[0]) == strings.ToLower(string(v.Name[0])) {
+			logrus.Warnf("The method '%s' is private and will be ignored", v.Name)
+			continue
+		}
+		if len(v.Results) == 0 {
+			logrus.Warnf("The method '%s' does not have any return value and will be ignored", v.Name)
+			continue
+		}
+		if !isOk {
+			logrus.Warnf("The method '%s' does not have a context and will be ignored", v.Name)
+		}
+		if isOk {
+			toKeep = append(toKeep, v)
+		}
+
+	}
+	iface.Methods = toKeep
+	if len(iface.Methods) == 0 {
+		return errors.New("The service has no method please implement the interface methods")
+	}
+	err = g.generateServiceMiddleware(name, spath, iface)
+	if err != nil {
+		return err
+	}
+	err = g.generateEndpointMiddleware(name, epath, iface)
+	if err != nil {
+		return err
+	}
 	return nil
+}
+func (mg *MiddlewareGenerator) generateEndpointMiddleware(name, path string, iface *parser.Interface) error {
+	logrus.Info("Generating endpoints middleware...")
+	te := template.NewEngine()
+	defaultFs := fs.Get()
+	handlerFile := parser.NewFile()
+	handlerFile.Package = "endpoints"
+
+	//
+	mname, err := te.ExecuteString(viper.GetString("middleware.name"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+
+	// imports
+	handlerFile.Imports = []parser.NamedTypeValue{
+		parser.NewNameType("", "\"github.com/go-kit/kit/endpoint\""),
+		parser.NewNameType("", "\"github.com/go-kit/kit/metrics\""),
+		parser.NewNameType("", "\"github.com/go-kit/kit/log\""),
+	}
+
+	// LoggingMiddleware
+	handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
+		"LoggingMiddleware",
+		`LoggingMiddleware returns an endpoint middleware that logs the
+					duration of each invocation, and the resulting error, if any.`,
+		parser.NamedTypeValue{},
+		`return func(next endpoint.Endpoint) endpoint.Endpoint {
+					return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+						defer func(begin time.Time) {
+							logger.Log("transport_error", err, "took", time.Since(begin))
+						}(time.Now())
+						return next(ctx, request)
+					}
+				}`,
+		[]parser.NamedTypeValue{
+			parser.NewNameType("logger", "log.Logger"),
+		},
+		[]parser.NamedTypeValue{
+			parser.NewNameType("", "endpoint.Middleware"),
+		},
+	))
+
+	// InstrumentingMiddleware
+	handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
+		"InstrumentingMiddleware",
+		`InstrumentingMiddleware returns an endpoint middleware that records
+					the duration of each invocation to the passed histogram. The middleware adds
+					a single field: "success", which is "true" if no error is returned, and
+					"false" otherwise.`,
+		parser.NamedTypeValue{},
+		`return func(next endpoint.Endpoint) endpoint.Endpoint {
+					return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+						defer func(begin time.Time) {
+							duration.With("success", fmt.Sprint(err == nil)).Observe(time.Since(begin).Seconds())
+						}(time.Now())
+						return next(ctx, request)
+					}
+				}`,
+		[]parser.NamedTypeValue{
+			parser.NewNameType("duration", "metrics.Histogram"),
+		},
+		[]parser.NamedTypeValue{
+			parser.NewNameType("", "endpoint.Middleware"),
+		},
+	))
+
+	tfile := path + defaultFs.FilePathSeparator() + mname
+	//if b {
+	//	fex, err := defaultFs.Exists(tfile)
+	//	if err != nil {
+	//		return err
+	//	}
+	//	if fex {
+	//		logrus.Errorf("Transport for service `%s` exist", name)
+	//		logrus.Info("If you are trying to update a service use `gk update service [serviceName]`")
+	//		return nil
+	//	}
+	//} else {
+	//	err = defaultFs.MkdirAll(path)
+	//	if err != nil {
+	//		return err
+	//	}
+	//}
+	return defaultFs.WriteFile(tfile, handlerFile.String(), false)
+}
+func (mg *MiddlewareGenerator) generateServiceMiddleware(name, path string, iface *parser.Interface) error {
+	logrus.Info("Generating service middleware...")
+	te := template.NewEngine()
+	defaultFs := fs.Get()
+	handlerFile := parser.NewFile()
+	handlerFile.Package = "service"
+
+	//
+	mname, err := te.ExecuteString(viper.GetString("middleware.name"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+
+	// import
+	mim := []string{
+		handlerFile.String(),
+		"import (",
+		`"github.com/go-kit/kit/metrics"`,
+		`"github.com/go-kit/kit/log"`,
+		`"google.golang.org/grpc/health/grpc_health_v1"`,
+		")",
+	}
+	var s string
+	s += strings.Join(mim, "\n")
+
+	//
+	t, err := template.NewEngine().ExecuteString("{{template \"struct_type\" .}}", struct {
+		Name    string
+		Comment string
+		Type    string
+	}{
+		Name:    "Middleware",
+		Comment: "// Middleware describes a service (as opposed to endpoint) middleware.",
+		Type:    fmt.Sprintf("func(%sService) %sService", utils.ToUpperFirstCamelCase(name), utils.ToUpperFirstCamelCase(name)),
+	})
+	s += "\n" + t
+
+	// LoggingMiddleware
+	m := parser.NewMethodWithComment(
+		"LoggingMiddleware",
+		`LoggingMiddleware takes a logger as a dependency
+			and returns a ServiceMiddleware.`,
+		parser.NamedTypeValue{},
+		fmt.Sprintf(`return func(next %sService) %sService {
+								return loggingMiddleware{level.Info(logger), next}
+							}`, utils.ToUpperFirstCamelCase(name), utils.ToUpperFirstCamelCase(name)),
+		[]parser.NamedTypeValue{
+			parser.NewNameType("logger", "log.Logger"),
+		},
+		[]parser.NamedTypeValue{
+			parser.NewNameType("", "Middleware"),
+		},
+	)
+	s += "\n" + m.String()
+
+	t2 := parser.Struct{
+		Name:    "loggingMiddleware",
+		Comment: "",
+		Vars: []parser.NamedTypeValue{
+			parser.NewNameType("logger", "log.Logger"),
+			parser.NewNameType("next", fmt.Sprintf("%sService", utils.ToUpperFirstCamelCase(name))),
+		},
+	}
+	s += "\n" + t2.String()
+
+	for _, v := range iface.Methods {
+		reqPrams := []parser.NamedTypeValue{}
+		for _, p := range v.Parameters {
+			if p.Type != "context.Context" {
+				//n := strings.ToUpper(string(p.Name[0])) + p.Name[1:]
+				reqPrams = append(reqPrams, parser.NewNameType(p.Name, p.Type))
+			}
+		}
+		resultPrams := []parser.NamedTypeValue{}
+		for _, p := range v.Results {
+			//n := strings.ToUpper(string(p.Name[0])) + p.Name[1:]
+			resultPrams = append(resultPrams, parser.NewNameType(p.Name, p.Type))
+		}
+		req := parser.NewStructWithComment(
+			v.Name+"Request",
+			fmt.Sprintf(
+				"%sRequest collects the request parameters for the %s method.",
+				v.Name, v.Name,
+			),
+			reqPrams,
+		)
+		res := parser.NewStructWithComment(
+			v.Name+"Response",
+			fmt.Sprintf(
+				"%sResponse collects the response values for the %s method.",
+				v.Name, v.Name,
+			),
+			resultPrams,
+		)
+		tmplModel := map[string]interface{}{
+			"Calling":  v,
+			"Request":  req,
+			"Response": res,
+		}
+		tRes, err := te.ExecuteString("{{template \"middleware_logging\" .}}", tmplModel)
+		if err != nil {
+			return err
+		}
+
+		t3 := parser.NewMethod(
+			v.Name,
+			parser.NamedTypeValue{Name: "lm", Type: "loggingMiddleware"},
+			tRes,
+			v.Parameters,
+			v.Results,
+		)
+		s += "\n\n" + t3.String()
+	}
+
+	// InstrumentingMiddleware
+	var x []string
+	var y []parser.NamedTypeValue
+	for _, v := range iface.Methods {
+		x = append(x, fmt.Sprintf("%s: %s,", strings.ToLower(v.Name), strings.ToLower(v.Name)))
+		y = append(y, parser.NewNameType(strings.ToLower(v.Name), "metrics.Counter"), )
+	}
+	m = parser.NewMethodWithComment(
+		"InstrumentingMiddleware",
+		`InstrumentingMiddleware returns a service middleware that instruments
+					the number of integers summed and characters concatenated over the lifetime of
+					the service.`,
+		parser.NamedTypeValue{},
+		fmt.Sprintf(`return func(next %sService) %sService {
+								return instrumentingMiddleware{
+									%s
+									next:  next,
+								}
+							}`, utils.ToUpperFirstCamelCase(name), utils.ToUpperFirstCamelCase(name), strings.Join(x, "\n")),
+		y,
+		[]parser.NamedTypeValue{
+			parser.NewNameType("", "Middleware"),
+		},
+	)
+	s += "\n" + m.String()
+
+	//
+	t2 = parser.Struct{
+		Name:    "instrumentingMiddleware",
+		Comment: "",
+		Vars:    append(y, parser.NewNameType("next", fmt.Sprintf("%sService", utils.ToUpperFirstCamelCase(name))), ),
+	}
+	s += "\n" + t2.String()
+
+	for _, v := range iface.Methods {
+		reqPrams := []parser.NamedTypeValue{}
+		for _, p := range v.Parameters {
+			if p.Type != "context.Context" {
+				//n := strings.ToUpper(string(p.Name[0])) + p.Name[1:]
+				reqPrams = append(reqPrams, parser.NewNameType(p.Name, p.Type))
+			}
+		}
+		resultPrams := []parser.NamedTypeValue{}
+		for _, p := range v.Results {
+			//n := strings.ToUpper(string(p.Name[0])) + p.Name[1:]
+			resultPrams = append(resultPrams, parser.NewNameType(p.Name, p.Type))
+		}
+		req := parser.NewStructWithComment(
+			v.Name+"Request",
+			fmt.Sprintf(
+				"%sRequest collects the request parameters for the %s method.",
+				v.Name, v.Name,
+			),
+			reqPrams,
+		)
+		res := parser.NewStructWithComment(
+			v.Name+"Response",
+			fmt.Sprintf(
+				"%sResponse collects the response values for the %s method.",
+				v.Name, v.Name,
+			),
+			resultPrams,
+		)
+		tmplModel := map[string]interface{}{
+			"Calling":  v,
+			"Request":  req,
+			"Response": res,
+		}
+		tRes, err := te.ExecuteString("{{template \"middleware_instrumenting\" .}}", tmplModel)
+		if err != nil {
+			return err
+		}
+		t3 := parser.NewMethod(
+			v.Name,
+			parser.NamedTypeValue{Name: "im", Type: "instrumentingMiddleware"},
+			tRes,
+			v.Parameters,
+			v.Results,
+		)
+		s += "\n\n" + t3.String()
+	}
+
+	tfile := path + defaultFs.FilePathSeparator() + mname
+	//fex, err := defaultFs.Exists(tfile)
+	//if err != nil {
+	//	return err
+	//}
+	//if fex {
+	//	logrus.Errorf("Middleware for service `%s` exist", name)
+	//	logrus.Info("If you are trying to update a Middleware use `gk update middleware [serviceName]`")
+	//	return nil
+	//}
+
+	d, err := imports.Process("g", []byte(s), nil)
+	if err != nil {
+		return err
+	}
+
+	return defaultFs.WriteFile(tfile, string(d), true)
 }
 
 func NewMiddlewareGenerator() *MiddlewareGenerator {
@@ -489,6 +886,26 @@ type ServiceInitGenerator struct {
 func (sg *ServiceInitGenerator) Generate(name string) error {
 	te := template.NewEngine()
 	defaultFs := fs.Get()
+
+	// project path
+	//var projectPath string
+	//goModPackage := utils.GetModPackage()
+	//if goModPackage == "" {
+	//	gosrc := utils.GetGOPATH() + "/src/"
+	//	gosrc = strings.Replace(gosrc, "\\", "/", -1)
+	//	pwd, err := os.Getwd()
+	//	if err != nil {
+	//		return err
+	//	}
+	//	if viper.GetString("gk_folder") != "" {
+	//		pwd += "/" + viper.GetString("gk_folder")
+	//	}
+	//	pwd = strings.Replace(pwd, "\\", "/", -1)
+	//	projectPath = strings.Replace(pwd, gosrc, "", 1)
+	//} else {
+	//	projectPath = goModPackage
+	//}
+
 	path, err := te.ExecuteString(viper.GetString("service.path"), map[string]string{
 		"ServiceName": name,
 	})
@@ -526,6 +943,7 @@ func (sg *ServiceInitGenerator) Generate(name string) error {
 	if !supported {
 		return errors.New(fmt.Sprintf("Transport `%s` not supported", transport))
 	}
+
 	p := parser.NewFileParser()
 	s, err := defaultFs.ReadFile(sfile)
 	if err != nil {
@@ -580,6 +998,7 @@ func (sg *ServiceInitGenerator) Generate(name string) error {
 	if err != nil {
 		return err
 	}
+
 	stub := parser.NewStruct(stubName, []parser.NamedTypeValue{})
 	exists := false
 	for _, v := range f.Structs {
@@ -610,15 +1029,34 @@ func (sg *ServiceInitGenerator) Generate(name string) error {
 			exists = true
 		}
 	}
+
 	if !exists {
+		req := []parser.NamedTypeValue{
+			//parser.NewNameType("logger", "logger.Logger"),
+		}
+		//ms := []string{}
+		//for _, v := range iface.Methods {
+		//	req = append(req, parser.NewNameType(strings.ToLower(v.Name), "metrics.Counter"))
+		//	ms = append(ms, strings.ToLower(v.Name))
+		//}
+
+		body := []string{
+			fmt.Sprintf("var svc %s", iname),
+			"{",
+			fmt.Sprintf("svc = &%s{}", stub.Name),
+			//"svc = LoggingMiddleware(logger)(svc)",
+			//fmt.Sprintf("svc = InstrumentingMiddleware(%s)(svc)", strings.Join(ms, ",")),
+			"}",
+			"return svc",
+		}
+
 		newMethod := parser.NewMethodWithComment(
 			"New",
 			`New return a new instance of the service.
 			If you want to add service middleware this is the place to put them.`,
 			parser.NamedTypeValue{},
-			fmt.Sprintf(`s = &%s{}
-			return s`, stub.Name),
-			[]parser.NamedTypeValue{},
+			strings.Join(body, "\n"),
+			req,
 			[]parser.NamedTypeValue{
 				parser.NewNameType("s", iname),
 			},
@@ -1219,7 +1657,9 @@ func (sg *ServiceInitGenerator) generateEndpoints(name string, iface *parser.Int
 	servicePath = strings.Replace(servicePath, "\\", "/", -1)
 	serviceImport := projectPath + "/" + servicePath
 	file.Imports = []parser.NamedTypeValue{
+		parser.NewNameType("", "\"github.com/go-kit/kit/metrics\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/endpoint\""),
+		//parser.NewNameType("logger", fmt.Sprintf(`"%s/pkg/logger"`, projectPath)),
 		parser.NewNameType("", "\""+serviceImport+"\""),
 	}
 	file.Methods = []parser.Method{
@@ -1230,6 +1670,8 @@ func (sg *ServiceInitGenerator) generateEndpoints(name string, iface *parser.Int
 			"",
 			[]parser.NamedTypeValue{
 				parser.NewNameType("svc", "service."+iface.Name),
+				//parser.NewNameType("logger", "log.Logger"),
+				//parser.NewNameType("duration", "metrics.Histogram"),
 			},
 			[]parser.NamedTypeValue{
 				parser.NewNameType("ep", "Endpoints"),
@@ -1306,7 +1748,19 @@ func (sg *ServiceInitGenerator) generateEndpoints(name string, iface *parser.Int
 			v.Results,
 		))
 
-		file.Methods[0].Body += "\n" + "ep." + file.Structs[0].Vars[i].Name + " = Make" + v.Name + "Endpoint(svc)"
+		//
+		tn := utils.ToLowerFirstCamelCase(file.Structs[0].Vars[i].Name)
+		buf := []string{
+			fmt.Sprintf("var %s endpoint.Endpoint", tn),
+			"{",
+			fmt.Sprintf("%s = Make%sEndpoint(svc)", tn, v.Name),
+			//fmt.Sprintf(`%s = LoggingMiddleware(log.With(logger, "method", "%s"))(%s)`, tn, v.Name, tn),
+			//fmt.Sprintf(`%s = InstrumentingMiddleware(duration.With("method", "%s"))(%s)`, tn, v.Name, tn),
+			"}",
+			fmt.Sprintf(`ep.%s = %s`, file.Structs[0].Vars[i].Name, tn),
+		}
+
+		file.Methods[0].Body += "\n" + strings.Join(buf, "\n")
 	}
 	file.Methods[0].Body += "\n return ep"
 	return defaultFs.WriteFile(eFile, file.String(), false)
@@ -1314,6 +1768,276 @@ func (sg *ServiceInitGenerator) generateEndpoints(name string, iface *parser.Int
 
 func NewServiceInitGenerator() *ServiceInitGenerator {
 	return &ServiceInitGenerator{}
+}
+
+type ServicePatchGenerator struct{}
+
+func (sg *ServicePatchGenerator) Generator(name string) error {
+	logrus.Info("Patching service middleware...")
+	te := template.NewEngine()
+	defaultFs := fs.Get()
+
+	path, err := te.ExecuteString(viper.GetString("service.path"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+	fname, err := te.ExecuteString(viper.GetString("service.file_name"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+	mname, err := te.ExecuteString(viper.GetString("middleware.name"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+	iname, err := te.ExecuteString(viper.GetString("service.interface_name"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+	sfile := path + defaultFs.FilePathSeparator() + fname
+	b, err := defaultFs.Exists(sfile)
+	if err != nil {
+		return err
+	}
+	if !b {
+		return errors.New(fmt.Sprintf("Service %s was not found", name))
+	}
+	//middleware
+	mfile := path + defaultFs.FilePathSeparator() + mname
+	b, err = defaultFs.Exists(mfile)
+	if err != nil {
+		return err
+	}
+	if !b {
+		logrus.Errorf("Middleware for service `%s` not exist", name)
+		logrus.Info("If you are trying to patch a service for middleware. Please execute `gk new middleware service [serviceName]` first.")
+		return err
+	}
+	p := parser.NewFileParser()
+	s, err := defaultFs.ReadFile(sfile)
+	if err != nil {
+		return err
+	}
+	f, err := p.Parse([]byte(s))
+	if err != nil {
+		return err
+	}
+	var iface *parser.Interface
+	for _, v := range f.Interfaces {
+		if v.Name == iname {
+			iface = &v
+		}
+	}
+	if iface == nil {
+		return errors.New(fmt.Sprintf("Could not find the service interface in `%s`", sfile))
+	}
+	toKeep := []parser.Method{}
+	for _, v := range iface.Methods {
+		isOk := false
+		for _, p := range v.Parameters {
+			if p.Type == "context.Context" {
+				isOk = true
+				break
+			}
+		}
+		if string(v.Name[0]) == strings.ToLower(string(v.Name[0])) {
+			logrus.Warnf("The method '%s' is private and will be ignored", v.Name)
+			continue
+		}
+		if len(v.Results) == 0 {
+			logrus.Warnf("The method '%s' does not have any return value and will be ignored", v.Name)
+			continue
+		}
+		if !isOk {
+			logrus.Warnf("The method '%s' does not have a context and will be ignored", v.Name)
+		}
+		if isOk {
+			toKeep = append(toKeep, v)
+		}
+
+	}
+	iface.Methods = toKeep
+	if len(iface.Methods) == 0 {
+		return errors.New("The service has no suitable methods please implement the interface methods")
+	}
+
+	stubName, err := te.ExecuteString(viper.GetString("service.struct_name"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+
+	// patch new
+	buf := f.Methods[1]
+	// reset
+	buf.Parameters = []parser.NamedTypeValue{}
+	ms := []string{}
+	for _, v := range iface.Methods {
+		ms = append(ms, strings.ToLower(v.Name))
+		buf.Parameters = append(buf.Parameters, parser.NewNameType(strings.ToLower(v.Name), "metrics.Counter"))
+	}
+	buf.Parameters = append([]parser.NamedTypeValue{
+		parser.NewNameType("logger", "log.Logger"),
+	}, buf.Parameters...)
+
+	body := []string{
+		fmt.Sprintf("var svc %s", iname),
+		"{",
+		fmt.Sprintf("svc = &%s{}", stubName),
+		"svc = LoggingMiddleware(logger)(svc)",
+		fmt.Sprintf("svc = InstrumentingMiddleware(%s)(svc)", strings.Join(ms, ",")),
+		"}",
+		"return svc",
+	}
+	f.Methods[1] = parser.NewMethodWithComment(
+		buf.Name,
+		strings.TrimSuffix(strings.Replace(buf.Comment, "/", "", -1), "\n"),
+		buf.Struct,
+		strings.Join(body, "\n"),
+		buf.Parameters,
+		buf.Results,
+	)
+
+	f.Imports = append(f.Imports, []parser.NamedTypeValue{
+		parser.NewNameType("", "\"github.com/go-kit/kit/log\""),
+		parser.NewNameType("", "\"github.com/go-kit/kit/metrics\""),
+	}...)
+
+	err = defaultFs.WriteFile(sfile, f.String(), true)
+	if err != nil {
+		return err
+	}
+
+	err = sg.generatePathEndpoints(name, iface)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (sg *ServicePatchGenerator) generatePathEndpoints(name string, iface *parser.Interface) error {
+	logrus.Info("Patching endpoints middleware...")
+	te := template.NewEngine()
+	defaultFs := fs.Get()
+
+	path, err := te.ExecuteString(viper.GetString("service.path"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+	fname, err := te.ExecuteString(viper.GetString("service.file_name"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+	mname, err := te.ExecuteString(viper.GetString("middleware.name"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+	epath, err := te.ExecuteString(viper.GetString("endpoints.path"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+	ename, err := te.ExecuteString(viper.GetString("endpoints.file_name"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+	// server/service.go
+	sfile := path + defaultFs.FilePathSeparator() + fname
+	b, err := defaultFs.Exists(sfile)
+	if err != nil {
+		return err
+	}
+	if !b {
+		return errors.New(fmt.Sprintf("Service %s was not found", name))
+	}
+	// endpoints/endpoint.go
+	efile := epath + defaultFs.FilePathSeparator() + ename
+	b, err = defaultFs.Exists(efile)
+	if err != nil {
+		return err
+	}
+	if !b {
+		return errors.New(fmt.Sprintf("Endpoint %s was not found", name))
+	}
+	// endpoints/middleware.go
+	mfile := epath + defaultFs.FilePathSeparator() + mname
+	b, err = defaultFs.Exists(mfile)
+	if err != nil {
+		return err
+	}
+	if !b {
+		logrus.Errorf("Middleware for endpoints `%s` not exist", name)
+		logrus.Info("If you are trying to patch a endpoints for middleware. Please execute `gk new middleware service [serviceName]` first.")
+		return err
+	}
+	p := parser.NewFileParser()
+	s, err := defaultFs.ReadFile(efile)
+	if err != nil {
+		return err
+	}
+	f, err := p.Parse([]byte(s))
+	if err != nil {
+		return err
+	}
+
+	// patch
+	buf := f.Methods[0]
+	// reset
+	buf.Parameters = []parser.NamedTypeValue{
+		parser.NewNameType("svc", "service."+iface.Name),
+		parser.NewNameType("logger", "log.Logger"),
+		parser.NewNameType("duration", "metrics.Histogram"),
+	}
+	buf.Body = ""
+
+	for _, v := range iface.Methods {
+		tn := fmt.Sprintf("%sEndpoint", utils.ToLowerFirstCamelCase(v.Name))
+		body := []string{
+			fmt.Sprintf("var %s endpoint.Endpoint", tn),
+			"{",
+			fmt.Sprintf("%s = Make%sEndpoint(svc)", tn, v.Name),
+			fmt.Sprintf(`%s = LoggingMiddleware(log.With(logger, "method", "%s"))(%s)`, tn, v.Name, tn),
+			fmt.Sprintf(`%s = InstrumentingMiddleware(duration.With("method", "%s"))(%s)`, tn, v.Name, tn),
+			"}",
+			fmt.Sprintf(`ep.%sEndpoint = %s`, utils.ToUpperFirstCamelCase(v.Name), tn),
+		}
+		buf.Body += "\n" + strings.Join(body, "\n")
+	}
+	buf.Body += "\n" + "return ep"
+
+	f.Methods[0] = buf
+	f.Imports = append(f.Imports, []parser.NamedTypeValue{
+		parser.NewNameType("", "\"github.com/go-kit/kit/log\""),
+		parser.NewNameType("", "\"github.com/go-kit/kit/metrics\""),
+	}...)
+	err = defaultFs.WriteFile(efile, f.String(), true)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func NewServicePatchGenerator() *ServicePatchGenerator {
+	return &ServicePatchGenerator{}
 }
 
 type GRPCInitGenerator struct {

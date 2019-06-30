@@ -1,0 +1,5 @@
+	{{range $i,$v := $.Response.Vars}}{{$v.Name}}{{if not (last $i $.Response.Vars)}},{{end}}{{end}} = im.next.{{$.Calling.Name}}(ctx, {{range $i,$v := $.Request.Vars}}{{$v.Name}}{{if not (last $i $.Request.Vars)}},{{end}}{{end}})
+    if err != nil {
+        im.{{toLower $.Calling.Name}}.With("method", "{{$.Calling.Name}}", "success", fmt.Sprint(err == nil)).Add(1)
+    }
+    return

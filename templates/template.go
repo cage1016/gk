@@ -31,6 +31,9 @@ func funcMap() template.FuncMap {
 		"last": func(x int, a interface{}) bool {
 			return x == reflect.ValueOf(a).Len()-1
 		},
+		"toLower": func(s string) string{
+			return strings.ToLower(s)
+		},
 		"toSnakeCase": func(s string) string {
 			return utils.ToLowerSnakeCase(s)
 		},

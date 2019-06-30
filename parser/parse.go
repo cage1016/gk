@@ -52,7 +52,13 @@ func (fp *FileParser) Parse(src []byte) (*File, error) {
 			if len(st) > 0 {
 				str = st[0]
 			}
-			fc := NewMethod(dec.Name.String(), str, bd, pr, rs)
+
+			var fc Method
+			if dec.Doc.Text() != "" {
+				fc = NewMethodWithComment(dec.Name.String(), strings.TrimSuffix(dec.Doc.Text(), "\n"), str, bd, pr, rs)
+			} else {
+				fc = NewMethod(dec.Name.String(), str, bd, pr, rs)
+			}
 			f.Methods = append(f.Methods, fc)
 		}
 		if dec, ok := v.(*ast.GenDecl); ok {
