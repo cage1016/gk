@@ -26,6 +26,7 @@ func (fp *FileParser) Parse(src []byte) (*File, error) {
 		return nil, err
 	}
 	f.Package = pf.Name.Name
+
 	for _, v := range pf.Decls {
 		if dec, ok := v.(*ast.FuncDecl); ok {
 			st := []NamedTypeValue{}
@@ -38,12 +39,33 @@ func (fp *FileParser) Parse(src []byte) (*File, error) {
 				pr = fp.parseFieldListAsNamedTypes(dec.Type.Params)
 				rs = fp.parseFieldListAsNamedTypes(dec.Type.Results)
 			}
-			bd := ""
+			//bd := ""
+			var bd2 bytes.Buffer
 			if dec.Body != nil {
 				fst := token.NewFileSet()
-				bt := bytes.NewBufferString("")
-				err := format.Node(bt, fst, dec.Body)
-				bd = bt.String()[1 : len(bt.String())-1]
+				var bt bytes.Buffer
+				err := format.Node(&bt, fst, dec.Body)
+				lastLine := 0
+
+				for i, p := range dec.Body.List {
+					var bt2 bytes.Buffer
+					err := format.Node(&bt2, fst, p)
+					if err != nil {
+						logrus.Panic(err)
+					}
+					startLine := fset.Position(p.Pos()).Line
+					if lastLine != 0 && (startLine-1) > lastLine {
+						for i = 0; i < (startLine - lastLine - 1); i++ {
+							bd2.WriteString("\n")
+						}
+					}
+					bd2.WriteString(bt2.String())
+					if i < len(dec.Body.List)-1 {
+						bd2.WriteString("\n")
+					}
+					lastLine = fset.Position((p.End())).Line
+				}
+
 				if err != nil {
 					logrus.Panic(err)
 				}
@@ -55,9 +77,9 @@ func (fp *FileParser) Parse(src []byte) (*File, error) {
 
 			var fc Method
 			if dec.Doc.Text() != "" {
-				fc = NewMethodWithComment(dec.Name.String(), strings.TrimSuffix(dec.Doc.Text(), "\n"), str, bd, pr, rs)
+				fc = NewMethodWithComment(dec.Name.String(), strings.TrimSuffix(dec.Doc.Text(), "\n"), str, strings.TrimSuffix(bd2.String(), "\n"), pr, rs)
 			} else {
-				fc = NewMethod(dec.Name.String(), str, bd, pr, rs)
+				fc = NewMethod(dec.Name.String(), str, strings.TrimSuffix(bd2.String(), "\n"), pr, rs)
 			}
 			f.Methods = append(f.Methods, fc)
 		}
@@ -90,12 +112,26 @@ func (fp *FileParser) parseType(dd *ast.CommentGroup, ds []ast.Spec, f *File) {
 		case *ast.InterfaceType:
 			ift := tsp.Type.(*ast.InterfaceType)
 			mth := fp.parseFieldListAsMethods(ift.Methods)
-			intr := NewInterfaceWithComment(tsp.Name.Name, strings.TrimSuffix(dd.Text(), "\n"), mth)
+			var intr Interface
+			if dd != nil {
+				intr = NewInterfaceWithComment(tsp.Name.Name, strings.TrimSuffix(dd.Text(), "\n"), mth)
+			} else {
+				intr = NewInterface(tsp.Name.Name, mth)
+			}
 			f.Interfaces = append(f.Interfaces, intr)
 		case *ast.StructType:
 			st := tsp.Type.(*ast.StructType)
-			str := NewStructWithComment(tsp.Name.Name, strings.TrimSuffix(dd.Text(), "\n"), fp.parseFieldListAsNamedTypes(st.Fields))
+			var str Struct
+			if dd != nil {
+				str = NewStructWithComment(tsp.Name.Name, strings.TrimSuffix(dd.Text(), "\n"), fp.parseFieldListAsNamedTypes(st.Fields))
+			} else {
+				str = NewStruct(tsp.Name.Name, fp.parseFieldListAsNamedTypes(st.Fields))
+			}
 			f.Structs = append(f.Structs, str)
+		case *ast.ChanType:
+			st := tsp.Type.(*ast.ChanType)
+			ctr := NewNameType(tsp.Name.Name, st.Value.(*ast.Ident).Name)
+			f.AliasType = append(f.AliasType, ctr)
 		default:
 			logrus.Info("Skipping unknown type")
 		}
@@ -169,7 +205,7 @@ func (fp *FileParser) parseConstants(ds []ast.Spec) []NamedTypeValue {
 			logrus.Debug("Spec type not  Ident type, odd, skipping")
 			continue
 		}
-		constants = append(constants, NewNameTypeValue(tp.Name, vsp.Names[0].Name, bd))
+		constants = append(constants, NewNameTypeValue(vsp.Names[0].Name, tp.Name, bd))
 	}
 	return constants
 }
@@ -221,6 +257,9 @@ func (fp *FileParser) getTypeFromExp(e ast.Expr) string {
 		key := fp.getTypeFromExp(k.Key)
 		value := fp.getTypeFromExp(k.Value)
 		tp = "map[" + key + "]" + value
+	case *ast.ChanType:
+		value := fp.getTypeFromExp(k.Value)
+		tp = "chan " + value
 	default:
 		logrus.Info("Type Expresion not supported")
 		return ""
