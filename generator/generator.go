@@ -50,8 +50,6 @@ func (sg *ServiceGenerator) Generate(name string) error {
 
 	defaultFs := fs.Get()
 
-	fmt.Println(f.AliasType)
-
 	path, err := te.ExecuteString(viper.GetString("service.path"), map[string]string{
 		"ServiceName": name,
 	})

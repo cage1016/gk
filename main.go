@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"strings"
 
@@ -15,8 +14,9 @@ import (
 func main() {
 	viper.AutomaticEnv()
 
-	modPage := utils.GetModPackage()
-	if modPage == "" {
+	modPackage := utils.GetModPackage()
+	if modPackage == "" {
+		logrus.Info("Go Mod package does not exist. check GOPATH ")
 		gosrc := utils.GetGOPATH() + afero.FilePathSeparator + "src" + afero.FilePathSeparator
 		pwd, err := os.Getwd()
 		if err != nil {
@@ -27,8 +27,6 @@ func main() {
 			logrus.Error("The project must be in the $GOPATH/src folder for the generator to work.")
 			return
 		}
-	} else {
-		fmt.Println(fmt.Sprintf("Go mod package: %s", modPage))
 	}
 	cmd.Execute()
 }
