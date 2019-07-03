@@ -1,11 +1,19 @@
 syntax = "proto3";
+
 package pb;
+
 // The {{.Name}} service definition.
 service {{.Name}} {
-{{range $i,$v := .Methods}} rpc {{$v.Name}} ({{$v.Request}}) returns ({{$v.Reply}}) {}
-{{end}}}
-{{range $i,$v := .Methods}}message {{$v.Request}} {
+    {{range $i,$v := .Methods}}
+    rpc {{$v.Name}} ({{$v.Name}}Request) returns ({{$v.Name}}Reply) {
+    }{{if not (last $i $.Methods)}}{{printf "\n"}}{{end}}{{end}}
 }
-message {{$v.Reply}} {
+{{range $i,$v := .Methods}}
+message {{$v.Name}}Request {
+{{range $k,$kv := $v.Parameters}}    {{$kv.Type}} {{$kv.Name}} = {{$kv.Value}};{{if not (last $k $v.Parameters)}}{{printf "\n"}}{{end}}{{end}}
+}
+
+message {{$v.Name}}Reply {
+{{range $k,$kv := $v.Results}}    {{$kv.Type}} {{$kv.Name}} = {{$kv.Value}};{{if not (last $k $v.Results)}}{{printf "\n"}}{{end}}{{end}}
 }
 {{end}}

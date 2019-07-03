@@ -10,11 +10,16 @@
   },
   "endpoints":{
     "path":"pkg{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}{{fileSeparator}}endpoints",
-    "file_name":"endpoints.go"
+    "file_name":"endpoints.go",
+    "requests_file_name":"requests.go",
+    "responses_file_name":"responses.go"
   },
   "transport":{
     "path":"pkg{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}{{fileSeparator}}transports",
     "file_name":"{{`{{.TransportType}}`}}.go"
+  },
+  "pb":{
+    "path":"pb{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}"
   },
   "cmd":{
    "path":"cmd{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}",

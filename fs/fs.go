@@ -2,9 +2,9 @@ package fs
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"github.com/Songmu/prompter"
-	"github.com/kujtimiihoxha/gk/templates"
+	template "github.com/kujtimiihoxha/gk/templates"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
 	"os"

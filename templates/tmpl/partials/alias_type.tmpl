@@ -1,0 +1,6 @@
+{{if gt (len $) 0}}
+{{range $i,$v := $}}
+{{if ne $v.Comment ""}}{{$v.Comment}}{{end}}
+type {{$v.Name}} {{$v.Type}}
+{{end}}
+{{end}}

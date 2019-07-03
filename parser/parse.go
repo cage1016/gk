@@ -70,7 +70,7 @@ func (fp *FileParser) Parse(src []byte) (*File, error) {
 			case token.VAR:
 				f.Vars = fp.parseVars(dec.Specs)
 			case token.TYPE:
-				fp.parseType(dec.Specs, &f)
+				fp.parseType(dec.Doc, dec.Specs, &f)
 			default:
 				logrus.Info("Skipping unknown Token Type")
 			}
@@ -79,7 +79,7 @@ func (fp *FileParser) Parse(src []byte) (*File, error) {
 	//fmt.Println(f.String())
 	return &f, nil
 }
-func (fp *FileParser) parseType(ds []ast.Spec, f *File) {
+func (fp *FileParser) parseType(dd *ast.CommentGroup, ds []ast.Spec, f *File) {
 	for _, sp := range ds {
 		tsp, ok := sp.(*ast.TypeSpec)
 		if !ok {
@@ -90,12 +90,11 @@ func (fp *FileParser) parseType(ds []ast.Spec, f *File) {
 		case *ast.InterfaceType:
 			ift := tsp.Type.(*ast.InterfaceType)
 			mth := fp.parseFieldListAsMethods(ift.Methods)
-			intr := NewInterface(tsp.Name.Name, mth)
-			intr.Methods = mth
+			intr := NewInterfaceWithComment(tsp.Name.Name, strings.TrimSuffix(dd.Text(), "\n"), mth)
 			f.Interfaces = append(f.Interfaces, intr)
 		case *ast.StructType:
 			st := tsp.Type.(*ast.StructType)
-			str := NewStruct(tsp.Name.Name, fp.parseFieldListAsNamedTypes(st.Fields))
+			str := NewStructWithComment(tsp.Name.Name, strings.TrimSuffix(dd.Text(), "\n"), fp.parseFieldListAsNamedTypes(st.Fields))
 			f.Structs = append(f.Structs, str)
 		default:
 			logrus.Info("Skipping unknown type")
