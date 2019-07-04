@@ -584,9 +584,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 	handlerFile.Methods = append(handlerFile.Methods, parser.NewMethod(
 		"encodeError",
 		parser.NamedTypeValue{},
-		`w.Header().Set("Content-Type", "application/json")
-	
-				switch err {
+		`switch err {
 				case io.ErrUnexpectedEOF:
 					w.WriteHeader(http.StatusBadRequest)
 				case io.EOF:
@@ -600,13 +598,24 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 					default:
 						w.WriteHeader(http.StatusInternalServerError)
 					}
-				}`,
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(errorWrapper{Error: err.Error()})`,
 		[]parser.NamedTypeValue{
 			parser.NewNameType("_", "context.Context"),
 			parser.NewNameType("err", "error"),
 			parser.NewNameType("w", "http.ResponseWriter"),
 		},
 		[]parser.NamedTypeValue{},
+	))
+
+	// errorWrapper
+	handlerFile.Structs = append(handlerFile.Structs, parser.NewStruct(
+		"errorWrapper",
+		[]parser.NamedTypeValue{
+			parser.NewNameType("Error", "string"),
+		},
 	))
 
 	path, err := te.ExecuteString(viper.GetString("transport.path"), map[string]string{
