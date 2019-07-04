@@ -318,6 +318,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 		parser.NewNameType("", "\"net/url\""),
 		parser.NewNameType("", "\"strings\""),
 		parser.NewNameType("", "\"time\""),
+		parser.NewNameType("", ""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/circuitbreaker\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/endpoint\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/log\""),
@@ -327,8 +328,10 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 		parser.NewNameType("httptransport", "\"github.com/go-kit/kit/transport/http\""),
 		parser.NewNameType("stdopentracing", "\"github.com/opentracing/opentracing-go\""),
 		parser.NewNameType("stdzipkin", "\"github.com/openzipkin/zipkin-go\""),
+		parser.NewNameType("", "\"github.com/prometheus/client_golang/prometheus/promhttp\""),
 		parser.NewNameType("", "\"github.com/sony/gobreaker\""),
 		parser.NewNameType("", "\"golang.org/x/time/rate\""),
+		parser.NewNameType("", ""),
 		parser.NewNameType("", "\""+endpointsImport+"\""),
 		parser.NewNameType("", "\""+serviceImport+"\""),
 	}
@@ -391,7 +394,8 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
     ))`, utils.ToLowerSnakeCase(m.Name), m.Name, m.Name, m.Name)
 		}
 
-		handlerFile.Methods[0].Body += "\n" + "return m"
+		handlerFile.Methods[0].Body += "\n" + `m.Handle("/metrics", promhttp.Handler())
+												return m`
 	}
 
 	// NewHTTPClient
