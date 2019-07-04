@@ -118,9 +118,16 @@ func (cpg *ConsulPatchGenerator) Generate(name string) error {
 		f.Methods[6].Parameters = append([]parser.NamedTypeValue{
 			parser.NewNameType("registar", "sd.Registrar"),
 		}, f.Methods[6].Parameters...)
+
+		f.Methods[6].Body = strings.Replace(f.Methods[6].Body, "pb.RegisterAddsvcServer(server, grpcServer)",
+			`grpc_health_v1.RegisterHealthServer(server, &service.HealthImpl{})
+					pb.RegisterAddsvcServer(server, grpcServer)
+					registar.Register()`, -1)
 	}
 
-	i1 := []parser.NamedTypeValue{}
+	i1 := []parser.NamedTypeValue{
+		parser.NewNameType("", "\"google.golang.org/grpc/health/grpc_health_v1\""),
+	}
 	i2 := []parser.NamedTypeValue{}
 
 	for _, i := range f.Imports {
