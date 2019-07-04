@@ -79,13 +79,13 @@ func (cpg *ConsulPatchGenerator) Generate(name string) error {
 	// patch main
 	{
 		// main function
-		if !strings.Contains(f.Methods[2].Body, `consulAddres := fmt.Sprintf("%%s:%%s", cfg.consulHost, cfg.consultPort)`) {
+		if !strings.Contains(f.Methods[2].Body, `consulAddres := fmt.Sprintf("%s:%s", cfg.consulHost, cfg.consultPort)`) {
 			f.Methods[2].Body = strings.Replace(
 				string(f.Methods[2].Body),
 				"cfg := loadConfig(logger)",
 				`cfg := loadConfig(logger)
 	
-				consulAddres := fmt.Sprintf("%%s:%%s", cfg.consulHost, cfg.consultPort)
+				consulAddres := fmt.Sprintf("%s:%s", cfg.consulHost, cfg.consultPort)
 				serviceIp := localIP()
 				servicePort, _ := strconv.Atoi(cfg.grpcPort)
 				consulReg := consulregister.NewConsulRegister(consulAddres, serviceName, serviceIp, servicePort, []string{serviceName, tag}, logger)
