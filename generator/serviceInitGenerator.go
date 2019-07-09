@@ -565,6 +565,9 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 		parser.NamedTypeValue{},
 		`w.Header().Set("Content-Type", "application/json; charset=utf-8")
 				if ar, ok := response.(endpoints.Response); ok{
+					if ar.Error() != nil {
+						return ar.Error()
+					}
 					for k, v := range ar.Headers() {
 						w.Header().Set(k, v)
 					}
@@ -1288,6 +1291,15 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 					parser.NewNameType("", "bool"),
 				},
 			),
+			parser.NewMethod(
+				"Error",
+				parser.NamedTypeValue{},
+				"",
+				[]parser.NamedTypeValue{},
+				[]parser.NamedTypeValue{
+					parser.NewNameType("", "error"),
+				},
+			),
 		},
 	))
 
@@ -1343,10 +1355,19 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 				parser.NewNameType("", "bool"),
 			},
 		))
+		f.Methods = append(f.Methods, parser.NewMethod(
+			"Error",
+			parser.NewNameType("r", v.Name+"Response"),
+			fmt.Sprintf(`return r.Err`)+"\n",
+			[]parser.NamedTypeValue{},
+			[]parser.NamedTypeValue{
+				parser.NewNameType("", "error"),
+			},
+		))
 	}
 
 	nm := len(iface.Methods)
-	var body = make([]string, 3+nm*4)
+	var body = make([]string, 4+nm*4)
 	tRes, err := te.ExecuteString("{{template \"vars\" .}}", f.Vars)
 	if err != nil {
 		return err
@@ -1357,10 +1378,11 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 	body[1] = string(a)
 	body[2] = f.Interfaces[0].String()
 	for i, _ := range iface.Methods {
-		body[4*i+3] = f.Structs[i].String()
-		body[4*i+4] = f.Methods[i*3+0].String()
-		body[4*i+5] = f.Methods[i*3+1].String()
-		body[4*i+6] = f.Methods[i*3+2].String()
+		body[5*i+3] = f.Structs[i].String()
+		body[5*i+4] = f.Methods[i*4+0].String()
+		body[5*i+5] = f.Methods[i*4+1].String()
+		body[5*i+6] = f.Methods[i*4+2].String()
+		body[5*i+7] = f.Methods[i*4+3].String()
 	}
 
 	return defaultFs.WriteFile(eFile, strings.Join(body, "\n\n"), false)

@@ -88,24 +88,24 @@ func (cpg *ConsulPatchGenerator) Generate(name string) error {
 				consulAddres := fmt.Sprintf("%s:%s", cfg.consulHost, cfg.consultPort)
 				serviceIp := localIP()
 				servicePort, _ := strconv.Atoi(cfg.grpcPort)
-				consulReg := consulregister.NewConsulRegister(consulAddres, serviceName, serviceIp, servicePort, []string{serviceName, tag}, logger)
+				consulReg := consulregister.NewConsulRegister(consulAddres, cfg.serviceName, serviceIp, servicePort, []string{cfg.nameSpace, cfg.serviceName}, logger)
 				svcRegistar, err := consulReg.NewConsulGRPCRegister()
 				defer svcRegistar.Deregister()
 				if err != nil {
 					level.Error(logger).Log(
 						"consulAddres", consulAddres,
-						"serviceName", serviceName,
+						"serviceName", cfg.serviceName,
 						"serviceIp", serviceIp,
 						"servicePort", servicePort,
-						"tags", []string{serviceName, tag},
+						"tags", []string{cfg.nameSpace, cfg.serviceName},
 						"err", err,
 					)
 				}`,
 				-1,
 			)
 			f.Methods[2].Body = strings.Replace(f.Methods[2].Body,
-				"go startGRPCServer(grpcServer, cfg.grpcPort, cfg.serverCert, cfg.serverKey, logger, errs)",
-				"go startGRPCServer(svcRegistar, grpcServer, cfg.grpcPort, cfg.serverCert, cfg.serverKey, logger, errs)", -1)
+				"go startGRPCServer(cfg, grpcServer, logger, errs)",
+				"go startGRPCServer(cfg, svcRegistar, grpcServer, logger, errs)", -1)
 			f.Methods[2].Body = strings.Replace(f.Methods[2].Body, "err := <-errs", "err = <-errs", -1)
 		} else {
 			logrus.Info("consul has been patched. skip action")
@@ -113,20 +113,29 @@ func (cpg *ConsulPatchGenerator) Generate(name string) error {
 		}
 	}
 
+	// New Server
+	{
+		for i, _ := range f.Methods[4].Results {
+			f.Methods[4].Results[i].Name = ""
+		}
+	}
+
 	// startGRPCServer parameters
 	{
-		f.Methods[6].Parameters = append([]parser.NamedTypeValue{
-			parser.NewNameType("registar", "sd.Registrar"),
-		}, f.Methods[6].Parameters...)
+		rear := append([]parser.NamedTypeValue{}, f.Methods[6].Parameters[1:]...)
+		ss := append(f.Methods[6].Parameters[0:1], parser.NewNameType("registar", "sd.Registrar"))
+		ss = append(ss, rear...)
+		f.Methods[6].Parameters = ss
 
-		f.Methods[6].Body = strings.Replace(f.Methods[6].Body, "pb.RegisterAddsvcServer(server, grpcServer)",
+		f.Methods[6].Body = strings.Replace(f.Methods[6].Body, "errs <- server.Serve(listener)",
 			`grpc_health_v1.RegisterHealthServer(server, &service.HealthImpl{})
-					pb.RegisterAddsvcServer(server, grpcServer)
-					registar.Register()`, -1)
+					registar.Register()
+					errs <- server.Serve(listener)`, -1)
 	}
 
 	i1 := []parser.NamedTypeValue{
 		parser.NewNameType("", "\"google.golang.org/grpc/health/grpc_health_v1\""),
+		parser.NewNameType("kitgrpc", "\"github.com/go-kit/kit/transport/grpc\""),
 	}
 	i2 := []parser.NamedTypeValue{}
 
