@@ -4,4 +4,4 @@
 		return
 	}
 	response := resp.({{.Response.Name}})
-	return {{range $i,$v := $.Response.Vars}}response.{{$v.Name}}{{if not (last $i $.Calling.Results)}},{{end}}{{end}}
+	return {{range $i,$v := $.Response.Vars}}{{if ne $v.Name "Err" }}response.{{$v.Name}}{{if not (last $i $.Calling.Results)}},{{end}}{{end}}{{end}} nil

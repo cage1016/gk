@@ -25,9 +25,15 @@
    "path":"cmd{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}",
    "file_name":"main.go"
   },
-  "consulregister": {
-    "path": "pkg/consulregister",
-    "file_name":"consulregister.go"
+  "consul": {
+    "register": {
+        "path": "pkg/shared_package/grpcsr",
+        "file_name": "consul_register.go"
+    },
+    "resolver": {
+        "path": "pkg/shared_package/grpclb",
+        "file_name": "consul_resolver.go"
+    }
   },
   "default_transport":"http"
 }

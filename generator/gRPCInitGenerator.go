@@ -195,10 +195,10 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 			fmt.Sprintf(
 				`_, rp, err := s.%s.ServeGRPC(ctx, req)
 					if err != nil {
-						return nil, err
+						return nil, grpcEncodeError(err)
 					}
 					rep = rp.(*pb.%sReply)
-					return rep, err`,
+					return rep, nil`,
 				utils.ToLowerFirstCamelCase(v.Name),
 				v.Name,
 			),
@@ -581,35 +581,26 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 
 	// annoying helper functions
 	{
-		handler.Methods = append(handler.Methods, parser.NewMethodWithComment(
-			"str2err",
-			"",
+		handler.Methods = append(handler.Methods, parser.NewMethod(
+			"grpcEncodeError",
 			parser.NamedTypeValue{},
-			`if s == "" {
+			`if err == nil {
 						return nil
 					}
-					return errors.New(s)`,
-			[]parser.NamedTypeValue{
-				parser.NewNameType("s", "string"),
-			},
-			[]parser.NamedTypeValue{
-				parser.NewNameType("", "error"),
-			},
-		))
-
-		handler.Methods = append(handler.Methods, parser.NewMethodWithComment(
-			"err2str",
-			"",
-			parser.NamedTypeValue{},
-			`	if err == nil {
-					return ""
-				}
-				return err.Error()`,
+				
+					st, ok := status.FromError(err)
+					if ok {
+						return status.Error(st.Code(), st.Message())
+					}
+					switch err {
+					default:
+						return status.Error(codes.Internal, "internal server error")
+					}`,
 			[]parser.NamedTypeValue{
 				parser.NewNameType("err", "error"),
 			},
 			[]parser.NamedTypeValue{
-				parser.NewNameType("", "string"),
+				parser.NewNameType("", "error"),
 			},
 		))
 	}

@@ -79,63 +79,61 @@ func (cpg *ConsulPatchGenerator) Generate(name string) error {
 	// patch main
 	{
 		// main function
-		if !strings.Contains(f.Methods[2].Body, `consulAddres := fmt.Sprintf("%s:%s", cfg.consulHost, cfg.consultPort)`) {
-			f.Methods[2].Body = strings.Replace(
-				string(f.Methods[2].Body),
+		if !strings.Contains(f.Methods[1].Body, `consulAddres := fmt.Sprintf("%s:%s", cfg.consulHost, cfg.consultPort)`) {
+			f.Methods[1].Body = strings.Replace(
+				string(f.Methods[1].Body),
 				"cfg := loadConfig(logger)",
 				`cfg := loadConfig(logger)
 	
-				consulAddres := fmt.Sprintf("%s:%s", cfg.consulHost, cfg.consultPort)
-				serviceIp := localIP()
-				servicePort, _ := strconv.Atoi(cfg.grpcPort)
-				consulReg := consulregister.NewConsulRegister(consulAddres, cfg.serviceName, serviceIp, servicePort, []string{cfg.nameSpace, cfg.serviceName}, logger)
-				svcRegistar, err := consulReg.NewConsulGRPCRegister()
-				defer svcRegistar.Deregister()
-				if err != nil {
-					level.Error(logger).Log(
-						"consulAddres", consulAddres,
-						"serviceName", cfg.serviceName,
-						"serviceIp", serviceIp,
-						"servicePort", servicePort,
-						"tags", []string{cfg.nameSpace, cfg.serviceName},
-						"err", err,
-					)
+				// consul
+				{
+					if cfg.consulHost != "" && cfg.consultPort != "" {
+						consulAddres := fmt.Sprintf("%s:%s", cfg.consulHost, cfg.consultPort)
+						servicePort, _ := strconv.Atoi(cfg.grpcPort)
+						consulReg := grpcsr.NewConsulRegister(consulAddres, cfg.serviceName, servicePort, []string{cfg.nameSpace, cfg.serviceName}, logger)
+						svcRegistar, err := consulReg.NewConsulGRPCRegister()
+						defer svcRegistar.Deregister()
+						if err != nil {
+							level.Error(logger).Log(
+								"consulAddres", consulAddres,
+								"serviceName", cfg.serviceName,
+								"servicePort", servicePort,
+								"tags", []string{cfg.nameSpace, cfg.serviceName},
+								"err", err,
+							)
+						}
+						svcRegistar.Register()
+					}
 				}`,
 				-1,
 			)
-			f.Methods[2].Body = strings.Replace(f.Methods[2].Body,
-				"go startGRPCServer(cfg, grpcServer, logger, errs)",
-				"go startGRPCServer(cfg, svcRegistar, grpcServer, logger, errs)", -1)
-			f.Methods[2].Body = strings.Replace(f.Methods[2].Body, "err := <-errs", "err = <-errs", -1)
 		} else {
-			logrus.Info("consul has been patched. skip action")
+			logrus.Info("cmd has been patched. skip action")
 			return nil
 		}
 	}
 
 	// New Server
 	{
-		for i, _ := range f.Methods[4].Results {
-			f.Methods[4].Results[i].Name = ""
+		for _, v := range []int{0, 3} {
+			for i, _ := range f.Methods[v].Results {
+				f.Methods[v].Results[i].Name = ""
+			}
 		}
 	}
 
 	// startGRPCServer parameters
 	{
-		rear := append([]parser.NamedTypeValue{}, f.Methods[6].Parameters[1:]...)
-		ss := append(f.Methods[6].Parameters[0:1], parser.NewNameType("registar", "sd.Registrar"))
-		ss = append(ss, rear...)
-		f.Methods[6].Parameters = ss
-
-		f.Methods[6].Body = strings.Replace(f.Methods[6].Body, "errs <- server.Serve(listener)",
+		f.Methods[5].Body = strings.Replace(f.Methods[5].Body, "errs <- server.Serve(listener)",
 			`grpc_health_v1.RegisterHealthServer(server, &service.HealthImpl{})
-					registar.Register()
 					errs <- server.Serve(listener)`, -1)
 	}
 
 	i1 := []parser.NamedTypeValue{
 		parser.NewNameType("", "\"google.golang.org/grpc/health/grpc_health_v1\""),
 		parser.NewNameType("kitgrpc", "\"github.com/go-kit/kit/transport/grpc\""),
+		parser.NewNameType("", fmt.Sprintf("\"%s/pkg/shared_package/grpclb\"", projectPath)),
+		parser.NewNameType("", fmt.Sprintf("\"%s/pkg/shared_package/grpcsr\"", projectPath)),
 	}
 	i2 := []parser.NamedTypeValue{}
 
@@ -158,34 +156,80 @@ func (cpg *ConsulPatchGenerator) Generate(name string) error {
 }
 
 func (cpg *ConsulPatchGenerator) generateConsulRegister() error {
-	logrus.Info("Patching cmd consul register...")
+	logrus.Info("Patching cmd consul...")
 	te := template.NewEngine()
 	defaultFs := fs.Get()
 
-	crs, err := te.Execute("consulregister.go", nil)
+	// register
+	logrus.Info("Patching cmd consul register...")
+	registerPath, err := te.ExecuteString(viper.GetString("consul.register.path"), nil)
+	if err != nil {
+		return err
+	}
+	registerFileName, err := te.ExecuteString(viper.GetString("consul.register.file_name"), nil)
 	if err != nil {
 		return err
 	}
 
-	cname, err := te.ExecuteString(viper.GetString("consulregister.file_name"), nil)
-	cpath, err := te.ExecuteString(viper.GetString("consulregister.path"), nil)
-	b, err := defaultFs.Exists(cpath)
+	err = defaultFs.MkdirAll(registerPath)
+	logrus.Debug(fmt.Sprintf("Creating register in shared_package: %s", registerPath))
+	if err != nil {
+		return err
+	}
+
+	registerstr, err := te.Execute("consul_register.go", nil)
+	if err != nil {
+		return err
+	}
+
+	registerfile := registerPath + defaultFs.FilePathSeparator() + registerFileName
+	b, err := defaultFs.Exists(registerfile)
 	if err != nil {
 		return err
 	}
 	if b {
-		logrus.Info("consulregister already exists")
-		return fs.NewDefaultFs(cpath).WriteFile(cname, crs, false)
+		logrus.Info("consul register already exists, skip re-generate")
+		//return fs.NewDefaultFs(registerPath).WriteFile(registerFileName, registerstr, false)
 	}
 
-	err = defaultFs.MkdirAll(cpath)
-	logrus.Debug(fmt.Sprintf("Creating consulregister pkg : %s", cpath))
+	err = defaultFs.WriteFile(registerfile, registerstr, true)
 	if err != nil {
 		return err
 	}
 
-	crfile := cpath + defaultFs.FilePathSeparator() + cname
-	err = defaultFs.WriteFile(crfile, crs, true)
+	// resolver
+	logrus.Info("Patching cmd consul resolver...")
+	resolverPath, err := te.ExecuteString(viper.GetString("consul.resolver.path"), nil)
+	if err != nil {
+		return err
+	}
+	resolverFileName, err := te.ExecuteString(viper.GetString("consul.resolver.file_name"), nil)
+	if err != nil {
+		return err
+	}
+
+	err = defaultFs.MkdirAll(resolverPath)
+	logrus.Debug(fmt.Sprintf("Creating resolver in shared_package: %s", resolverPath))
+	if err != nil {
+		return err
+	}
+
+	resolverstr, err := te.Execute("consul_resolver.go", nil)
+	if err != nil {
+		return err
+	}
+
+	resolverfile := resolverPath + defaultFs.FilePathSeparator() + resolverFileName
+	b, err = defaultFs.Exists(resolverfile)
+	if err != nil {
+		return err
+	}
+	if b {
+		logrus.Info("consul resolver already exists, skip re-generate")
+		//return fs.NewDefaultFs(resolverPath).WriteFile(resolverFileName, resolverstr, false)
+	}
+
+	err = defaultFs.WriteFile(resolverfile, resolverstr, true)
 	if err != nil {
 		return err
 	}

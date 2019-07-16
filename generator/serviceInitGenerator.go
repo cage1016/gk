@@ -336,6 +336,27 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 		parser.NewNameType("", "\""+serviceImport+"\""),
 	}
 
+	// JSONErrorDecoder
+	handlerFile.Methods = append(handlerFile.Methods, parser.NewMethod(
+		"JSONErrorDecoder",
+		parser.NamedTypeValue{},
+		`contentType := r.Header.Get("Content-Type")
+				if !strings.Contains(contentType, "application/json") {
+					return fmt.Errorf("expected JSON formatted error, got Content-Type %s", contentType)
+				}
+				var w errorWrapper
+				if err := json.NewDecoder(r.Body).Decode(&w); err != nil {
+					return err
+				}
+				return errors.New(w.Error)`,
+		[]parser.NamedTypeValue{
+			parser.NewNameType("r", "*http.Response"),
+		},
+		[]parser.NamedTypeValue{
+			parser.NewNameType("", "error"),
+		},
+	))
+
 	// NewHTTPHandler
 	{
 		handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
@@ -351,7 +372,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 					zipkinServer := zipkin.HTTPServerTrace(zipkinTracer)
 				
 					options := []httptransport.ServerOption{
-						httptransport.ServerErrorEncoder(encodeError),
+						httptransport.ServerErrorEncoder(httpEncodeError),
 						httptransport.ServerErrorLogger(logger),
 						zipkinServer,
 					}
@@ -386,7 +407,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 					parser.NewNameType("", "error"),
 				},
 			))
-			handlerFile.Methods[0].Body += "\n" + fmt.Sprintf(`m.Handle("/%s", httptransport.NewServer(
+			handlerFile.Methods[1].Body += "\n" + fmt.Sprintf(`m.Handle("/%s", httptransport.NewServer(
         endpoints.%sEndpoint,
         decodeHTTP%sRequest,
         encodeHTTPGenericResponse,
@@ -394,7 +415,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
     ))`, utils.ToLowerSnakeCase(m.Name), m.Name, m.Name, m.Name)
 		}
 
-		handlerFile.Methods[0].Body += "\n" + `m.Handle("/metrics", promhttp.Handler())
+		handlerFile.Methods[1].Body += "\n" + `m.Handle("/metrics", promhttp.Handler())
 												return m`
 	}
 
@@ -498,7 +519,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 			    the specific error message from the response body. Primarily useful in a client.`, m.Name),
 				parser.NamedTypeValue{},
 				fmt.Sprintf(`if r.StatusCode != http.StatusOK {
-										return nil, errors.New(r.Status)
+										return nil, JSONErrorDecoder(r)
 									}
 									var resp endpoints.%sResponse
 									err := json.NewDecoder(r.Body).Decode(&resp)
@@ -514,7 +535,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 			))
 
 			fcname := utils.ToLowerFirstCamelCase(m.Name)
-			handlerFile.Methods[len(iface.Methods)*1+1].Body += "\n" + fmt.Sprintf(
+			handlerFile.Methods[len(iface.Methods)*1+2].Body += "\n" + fmt.Sprintf(
 				`// The %s endpoint is the same thing, with slightly different
 						// middlewares to demonstrate how to specialize per-endpoint.
 						var %sEndpoint endpoint.Endpoint
@@ -549,9 +570,9 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 				fcname,
 				m.Name, utils.ToLowerFirstCamelCase(m.Name))
 
-			handlerFile.Methods[len(iface.Methods)*1+1].Body += "\n"
+			handlerFile.Methods[len(iface.Methods)*1+2].Body += "\n"
 		}
-		handlerFile.Methods[len(iface.Methods)*1+1].Body += "\n" + `// Returning the endpoint.Set as a service.Service relies on the
+		handlerFile.Methods[len(iface.Methods)*1+2].Body += "\n" + `// Returning the endpoint.Set as a service.Service relies on the
 	// endpoint.Set implementing the Service methods. That's just a simple bit
 	// of glue code.
 	return e, nil`
@@ -565,9 +586,6 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 		parser.NamedTypeValue{},
 		`w.Header().Set("Content-Type", "application/json; charset=utf-8")
 				if ar, ok := response.(endpoints.Response); ok{
-					if ar.Error() != nil {
-						return ar.Error()
-					}
 					for k, v := range ar.Headers() {
 						w.Header().Set(k, v)
 					}
@@ -587,28 +605,40 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 		},
 	))
 
-	// encodeError
+	// httpEncodeError
 	handlerFile.Methods = append(handlerFile.Methods, parser.NewMethod(
-		"encodeError",
+		"httpEncodeError",
 		parser.NamedTypeValue{},
-		`switch err {
-				case io.ErrUnexpectedEOF:
-					w.WriteHeader(http.StatusBadRequest)
-				case io.EOF:
-					w.WriteHeader(http.StatusBadRequest)
-				default:
-					switch err.(type) {
-					case *json.SyntaxError:
-						w.WriteHeader(http.StatusBadRequest)
-					case *json.UnmarshalTypeError:
-						w.WriteHeader(http.StatusBadRequest)
-					default:
-						w.WriteHeader(http.StatusInternalServerError)
+		`w.Header().Set("Content-Type", "application/json")
+			
+				if lberr, ok := err.(lb.RetryError); ok {
+					st, _ := status.FromError(lberr.Final)
+					w.WriteHeader(HTTPStatusFromCode(st.Code()))
+					json.NewEncoder(w).Encode(errorWrapper{Error: st.Message()})
+				} else {
+					st, ok := status.FromError(err)
+					if ok {
+						w.WriteHeader(HTTPStatusFromCode(st.Code()))
+						json.NewEncoder(w).Encode(errorWrapper{Error: st.Message()})
+					} else {
+						switch err {
+						case io.ErrUnexpectedEOF:
+							w.WriteHeader(http.StatusBadRequest)
+						case io.EOF:
+							w.WriteHeader(http.StatusBadRequest)
+						default:
+							switch err.(type) {
+							case *json.SyntaxError:
+								w.WriteHeader(http.StatusBadRequest)
+							case *json.UnmarshalTypeError:
+								w.WriteHeader(http.StatusBadRequest)
+							default:
+								w.WriteHeader(http.StatusInternalServerError)
+							}
+						}
+						json.NewEncoder(w).Encode(errorWrapper{Error: err.Error()})
 					}
-				}
-
-				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(errorWrapper{Error: err.Error()})`,
+				}`,
 		[]parser.NamedTypeValue{
 			parser.NewNameType("_", "context.Context"),
 			parser.NewNameType("err", "error"),
@@ -624,6 +654,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 			parser.NewNameType("Error", "string"),
 		},
 	))
+
 
 	path, err := te.ExecuteString(viper.GetString("transport.path"), map[string]string{
 		"ServiceName":   name,
@@ -1078,7 +1109,7 @@ func (sg *ServiceInitGenerator) generateEndpoints(name string, iface *parser.Int
 		{
 			method := "%s"
 			%sEndpoint = Make%sEndpoint(svc)
-            %sEndpoint = ratelimit.NewErroringLimiter(rate.NewLimiter(rate.Every(time.Second), 1))(%sEndpoint)
+            %sEndpoint = ratelimit.NewErroringLimiter(rate.NewLimiter(rate.Every(time.Second), 100))(%sEndpoint)
 			%sEndpoint = circuitbreaker.Gobreaker(gobreaker.NewCircuitBreaker(gobreaker.Settings{}))(%sEndpoint)
 			%sEndpoint = opentracing.TraceServer(otTracer, method)(%sEndpoint)
 			%sEndpoint = zipkin.TraceEndpoint(zipkinTracer,  method)(%sEndpoint)
@@ -1291,15 +1322,6 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 					parser.NewNameType("", "bool"),
 				},
 			),
-			parser.NewMethod(
-				"Error",
-				parser.NamedTypeValue{},
-				"",
-				[]parser.NamedTypeValue{},
-				[]parser.NamedTypeValue{
-					parser.NewNameType("", "error"),
-				},
-			),
 		},
 	))
 
@@ -1355,15 +1377,6 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 				parser.NewNameType("", "bool"),
 			},
 		))
-		f.Methods = append(f.Methods, parser.NewMethod(
-			"Error",
-			parser.NewNameType("r", v.Name+"Response"),
-			fmt.Sprintf(`return r.Err`)+"\n",
-			[]parser.NamedTypeValue{},
-			[]parser.NamedTypeValue{
-				parser.NewNameType("", "error"),
-			},
-		))
 	}
 
 	nm := len(iface.Methods)
@@ -1378,11 +1391,10 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 	body[1] = string(a)
 	body[2] = f.Interfaces[0].String()
 	for i, _ := range iface.Methods {
-		body[5*i+3] = f.Structs[i].String()
-		body[5*i+4] = f.Methods[i*4+0].String()
-		body[5*i+5] = f.Methods[i*4+1].String()
-		body[5*i+6] = f.Methods[i*4+2].String()
-		body[5*i+7] = f.Methods[i*4+3].String()
+		body[4*i+3] = f.Structs[i].String()
+		body[4*i+4] = f.Methods[i*3+0].String()
+		body[4*i+5] = f.Methods[i*3+1].String()
+		body[4*i+6] = f.Methods[i*3+2].String()
 	}
 
 	return defaultFs.WriteFile(eFile, strings.Join(body, "\n\n"), false)

@@ -269,29 +269,6 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 	)
 	f.Methods = append(f.Methods, envFunc)
 
-	// local ip
-	localIpFunc := parser.NewMethod(
-		"localIP",
-		parser.NamedTypeValue{},
-		`addrs, err := net.InterfaceAddrs()
-				if err != nil {
-					return ""
-				}
-				for _, address := range addrs {
-					if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-						if ipnet.IP.To4() != nil {
-							return ipnet.IP.String()
-						}
-					}
-				}
-				return ""`,
-		[]parser.NamedTypeValue{},
-		[]parser.NamedTypeValue{
-			parser.NewNameType("", "string"),
-		},
-	)
-	f.Methods = append(f.Methods, localIpFunc)
-
 	// main function
 	mainFunc := parser.NewMethod(
 		"main",
