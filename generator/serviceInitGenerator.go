@@ -691,6 +691,25 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 			return err
 		}
 	}
+
+	// errors
+	errorsstr, err := te.Execute("errors.go", nil)
+	if err != nil {
+		return err
+	}
+	errorsfile := path + defaultFs.FilePathSeparator() + "errors.go"
+	b, err = defaultFs.Exists(errorsfile)
+	if err != nil {
+		return err
+	}
+	if b {
+		logrus.Info("errors.go already exists, skip re-generate")
+	}
+	err = defaultFs.WriteFile(errorsfile, errorsstr, true)
+	if err != nil {
+		return err
+	}
+
 	return defaultFs.WriteFile(tfile, handlerFile.String(), false)
 }
 func (sg *ServiceInitGenerator) generateGRPCTransport(name string, iface *parser.Interface) error {
