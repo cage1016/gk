@@ -28,6 +28,9 @@ func funcMap() template.FuncMap {
 		"add": func(x, y int) int {
 			return x + y
 		},
+		"first": func(x int, a interface{}) bool {
+			return x == 0
+		},
 		"last": func(x int, a interface{}) bool {
 			return x == reflect.ValueOf(a).Len()-1
 		},

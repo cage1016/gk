@@ -410,7 +410,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 			handlerFile.Methods[1].Body += "\n" + fmt.Sprintf(`m.Handle("/%s", httptransport.NewServer(
         endpoints.%sEndpoint,
         decodeHTTP%sRequest,
-        encodeHTTPGenericResponse,
+        httptransport.EncodeJSONResponse,
 		append(options, httptransport.ServerBefore(opentracing.HTTPToContext(otTracer, "%s", logger)))...,
     ))`, utils.ToLowerSnakeCase(m.Name), m.Name, m.Name, m.Name)
 		}
@@ -578,33 +578,6 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 	return e, nil`
 	}
 
-	// encodeHTTPGenericResponse
-	handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
-		"encodeHTTPGenericResponse",
-		`encodeHTTPGenericResponse is a transport/http.EncodeResponseFunc that encodes
-					the response as JSON to the response writer. Primarily useful in a server.`,
-		parser.NamedTypeValue{},
-		`w.Header().Set("Content-Type", "application/json; charset=utf-8")
-				if ar, ok := response.(endpoints.Response); ok{
-					for k, v := range ar.Headers() {
-						w.Header().Set(k, v)
-					}
-					w.WriteHeader(ar.Code())
-					if ar.Empty() {
-						return nil
-					}
-				}
-				return json.NewEncoder(w).Encode(response)`,
-		[]parser.NamedTypeValue{
-			parser.NewNameType("ctx", "context.Context"),
-			parser.NewNameType("w", "http.ResponseWriter"),
-			parser.NewNameType("response", "interface{}"),
-		},
-		[]parser.NamedTypeValue{
-			parser.NewNameType("", "error"),
-		},
-	))
-
 	// httpEncodeError
 	handlerFile.Methods = append(handlerFile.Methods, parser.NewMethod(
 		"httpEncodeError",
@@ -654,7 +627,6 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 			parser.NewNameType("Error", "string"),
 		},
 	))
-
 
 	path, err := te.ExecuteString(viper.GetString("transport.path"), map[string]string{
 		"ServiceName":   name,
@@ -1310,40 +1282,6 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 	f := parser.NewFile()
 	f.Package = "endpoints"
 
-	f.Interfaces = append(f.Interfaces, parser.NewInterfaceWithComment(
-		"Response",
-		`Response contains HTTP response specific methods.`,
-		[]parser.Method{
-			parser.NewMethod(
-				"Code",
-				parser.NamedTypeValue{},
-				"",
-				[]parser.NamedTypeValue{},
-				[]parser.NamedTypeValue{
-					parser.NewNameType("", "int"),
-				},
-			),
-			parser.NewMethod(
-				"Headers",
-				parser.NamedTypeValue{},
-				"",
-				[]parser.NamedTypeValue{},
-				[]parser.NamedTypeValue{
-					parser.NewNameType("", "map[string]string"),
-				},
-			),
-			parser.NewMethod(
-				"Empty",
-				parser.NamedTypeValue{},
-				"",
-				[]parser.NamedTypeValue{},
-				[]parser.NamedTypeValue{
-					parser.NewNameType("", "bool"),
-				},
-			),
-		},
-	))
-
 	for _, v := range iface.Methods {
 		reqPrams := []parser.NamedTypeValue{}
 		for _, p := range v.Parameters {
@@ -1367,10 +1305,11 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 		)
 		f.Structs = append(f.Structs, res)
 
-		f.Vars = append(f.Vars, parser.NewNameTypeValue("_", "Response", fmt.Sprintf(`(*%sResponse)(nil)`, v.Name)))
+		f.Vars = append(f.Vars, parser.NewNameTypeValue("_", "httptransport.Headerer", fmt.Sprintf(`(*%sResponse)(nil)`, v.Name)))
+		f.Vars = append(f.Vars, parser.NewNameTypeValue("_", "httptransport.StatusCoder", fmt.Sprintf(`(*%sResponse)(nil)`, v.Name)))
 
 		f.Methods = append(f.Methods, parser.NewMethod(
-			"Code",
+			"StatusCode",
 			parser.NewNameType("r", v.Name+"Response"),
 			fmt.Sprintf(`return http.StatusOK // TBA`)+"\n",
 			[]parser.NamedTypeValue{},
@@ -1381,39 +1320,32 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 		f.Methods = append(f.Methods, parser.NewMethod(
 			"Headers",
 			parser.NewNameType("r", v.Name+"Response"),
-			fmt.Sprintf(`return map[string]string{}// TBA`)+"\n",
+			fmt.Sprintf(`return http.Header{}`)+"\n",
 			[]parser.NamedTypeValue{},
 			[]parser.NamedTypeValue{
-				parser.NewNameType("", "map[string]string"),
-			},
-		))
-		f.Methods = append(f.Methods, parser.NewMethod(
-			"Empty",
-			parser.NewNameType("r", v.Name+"Response"),
-			fmt.Sprintf(`return false // TBA`)+"\n",
-			[]parser.NamedTypeValue{},
-			[]parser.NamedTypeValue{
-				parser.NewNameType("", "bool"),
+				parser.NewNameType("", "http.Header"),
 			},
 		))
 	}
 
 	nm := len(iface.Methods)
-	var body = make([]string, 4+nm*4)
+	var body = make([]string, 3+nm*3)
 	tRes, err := te.ExecuteString("{{template \"vars\" .}}", f.Vars)
 	if err != nil {
 		return err
 	}
 
-	body[0] = "package endpoints" + "\n\n" + `import "net/http"`
+	body[0] = "package endpoints" + "\n\n" + `import (
+	"net/http"
+	
+	httptransport "github.com/go-kit/kit/transport/http"
+)`
 	a, _ := format.Source([]byte(strings.TrimSpace(tRes)))
 	body[1] = string(a)
-	body[2] = f.Interfaces[0].String()
 	for i, _ := range iface.Methods {
-		body[4*i+3] = f.Structs[i].String()
-		body[4*i+4] = f.Methods[i*3+0].String()
-		body[4*i+5] = f.Methods[i*3+1].String()
-		body[4*i+6] = f.Methods[i*3+2].String()
+		body[3*i+2] = f.Structs[i].String()
+		body[3*i+3] = f.Methods[i*2+0].String()
+		body[3*i+4] = f.Methods[i*2+1].String()
 	}
 
 	return defaultFs.WriteFile(eFile, strings.Join(body, "\n\n"), false)

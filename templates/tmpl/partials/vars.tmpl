@@ -1,3 +1,4 @@
 {{if gt (len $) 0}}var ({{range $i,$v := $}}
+{{if $v.Comment}}{{if not (first $i $)}}{{printf "\n"}}{{end}}{{$v.Comment}}{{end}}
 {{$v.Name}} {{$v.Type}} {{if $v.HasValue}}= {{$v.Value}}{{end}}{{end}}
 ){{end}}

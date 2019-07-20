@@ -156,6 +156,15 @@ func (fp *FileParser) parseImports(ds []ast.Spec) []NamedTypeValue {
 	}
 	return imports
 }
+
+func comentgroupToText(dd *ast.CommentGroup) string {
+	var a []string
+	for _, v := range dd.List {
+		a = append(a, v.Text)
+	}
+	return strings.Join(a, "\n")
+}
+
 func (fp *FileParser) parseVars(ds []ast.Spec) []NamedTypeValue {
 	vars := []NamedTypeValue{}
 	for _, sp := range ds {
@@ -164,24 +173,49 @@ func (fp *FileParser) parseVars(ds []ast.Spec) []NamedTypeValue {
 			logrus.Debug("Var spec is not ValueSpec type, odd, skipping")
 			continue
 		}
+
 		tp, ok := vsp.Type.(*ast.Ident)
 		if !ok {
-			logrus.Debug("Spec type not  Ident type, odd, skipping")
-			continue
-		}
-		if len(vsp.Values) > 0 {
-			fst := token.NewFileSet()
-			bt := bytes.NewBufferString("")
-			err := format.Node(bt, fst, vsp.Values[0])
-			bd := bt.String()
-			if err != nil {
-				logrus.Panic(err)
-			}
-			vars = append(vars, NewNameTypeValue(tp.Name, vsp.Names[0].Name, bd))
-		} else {
-			vars = append(vars, NewNameType(tp.Name, vsp.Names[0].Name))
-		}
+			if len(vsp.Values) > 0 {
+				fst := token.NewFileSet()
+				bt := bytes.NewBufferString("")
+				err := format.Node(bt, fst, vsp.Values[0])
+				bd := bt.String()
+				if err != nil {
+					logrus.Panic(err)
+				}
 
+				if vsp.Doc.Text() != "" {
+					vars = append(vars, NewNameTypeValueWithComment(vsp.Names[0].Name, "", bd, comentgroupToText(vsp.Doc)))
+				}else{
+					vars = append(vars, NewNameTypeValue(vsp.Names[0].Name, "", bd))
+				}
+			} else {
+				logrus.Debug(" vsp.Type.(*ast.Ident), odd, skipping")
+				continue
+			}
+		} else {
+			if len(vsp.Values) > 0 {
+				fst := token.NewFileSet()
+				bt := bytes.NewBufferString("")
+				err := format.Node(bt, fst, vsp.Values[0])
+				bd := bt.String()
+				if err != nil {
+					logrus.Panic(err)
+				}
+				if vsp.Doc.Text() != "" {
+					vars = append(vars, NewNameTypeValueWithComment(tp.Name, vsp.Names[0].Name, bd, comentgroupToText(vsp.Doc)))
+				}else{
+					vars = append(vars, NewNameTypeValue(tp.Name, vsp.Names[0].Name, bd))
+				}
+			} else {
+				if vsp.Doc.Text() != "" {
+					vars = append(vars, NewNameTypeWithCommment(vsp.Names[0].Name, tp.Name, comentgroupToText(vsp.Doc)))
+				}else{
+					vars = append(vars, NewNameType(vsp.Names[0].Name, tp.Name))
+				}
+			}
+		}
 	}
 	return vars
 }
