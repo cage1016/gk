@@ -118,7 +118,6 @@ func (sg *ServiceInitGenerator) Generate(name string) error {
 	// imports
 	f.Imports = append(f.Imports, []parser.NamedTypeValue{
 		parser.NewNameType("", "\"github.com/go-kit/kit/log\""),
-		parser.NewNameType("", "\"github.com/go-kit/kit/metrics\""),
 	}...)
 
 	// alias type
@@ -169,7 +168,6 @@ func (sg *ServiceInitGenerator) Generate(name string) error {
 			"{",
 			fmt.Sprintf("svc = &%s{logger: logger}", stub.Name),
 			"svc = LoggingMiddleware(logger)(svc)",
-			"svc = InstrumentingMiddleware(requestCount, requestLatency)(svc)",
 			"}",
 			"return svc",
 		}
@@ -181,8 +179,6 @@ func (sg *ServiceInitGenerator) Generate(name string) error {
 			strings.Join(body, "\n"),
 			[]parser.NamedTypeValue{
 				parser.NewNameType("logger", "log.Logger"),
-				parser.NewNameType("requestCount", "metrics.Counter"),
-				parser.NewNameType("requestLatency", "metrics.Histogram"),
 			},
 			[]parser.NamedTypeValue{
 				parser.NewNameType("s", iname),
@@ -232,14 +228,6 @@ func (sg *ServiceInitGenerator) Generate(name string) error {
 		return err
 	}
 	err = sg.generateServiceLoggingMiddleware(name, path, iface)
-	if err != nil {
-		return err
-	}
-	err = sg.generateServiceInstrumentingMiddleware(name, path, iface)
-	if err != nil {
-		return err
-	}
-	err = sg.generateServiceHealth(name, path, iface)
 	if err != nil {
 		return err
 	}
@@ -998,7 +986,6 @@ func (sg *ServiceInitGenerator) generateEndpoints(name string, iface *parser.Int
 		parser.NewNameType("", `"github.com/sony/gobreaker"`),
 		parser.NewNameType("stdzipkin", `"github.com/openzipkin/zipkin-go"`),
 		parser.NewNameType("stdopentracing", "\"github.com/opentracing/opentracing-go\""),
-		parser.NewNameType("", "\"github.com/go-kit/kit/metrics\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/endpoint\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/log\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/tracing/opentracing\""),
@@ -1013,7 +1000,6 @@ func (sg *ServiceInitGenerator) generateEndpoints(name string, iface *parser.Int
 			[]parser.NamedTypeValue{
 				parser.NewNameType("svc", "service."+iface.Name),
 				parser.NewNameType("logger", "log.Logger"),
-				parser.NewNameType("duration", "metrics.Histogram"),
 				parser.NewNameType("otTracer", "stdopentracing.Tracer"),
 				parser.NewNameType("zipkinTracer", "*stdzipkin.Tracer"),
 			},
@@ -1105,15 +1091,12 @@ func (sg *ServiceInitGenerator) generateEndpoints(name string, iface *parser.Int
 			%sEndpoint = opentracing.TraceServer(otTracer, method)(%sEndpoint)
 			%sEndpoint = zipkin.TraceEndpoint(zipkinTracer,  method)(%sEndpoint)
 			%sEndpoint = LoggingMiddleware(log.With(logger, "method", method))(%sEndpoint)
-			%sEndpoint = InstrumentingMiddleware(duration.With("method", method))(%sEndpoint)
 			ep.%sEndpoint = %sEndpoint
 		}
 		`, lowerName,
 			lowerName,
 			lowerName,
 			upperName,
-			lowerName,
-			lowerName,
 			lowerName,
 			lowerName,
 			lowerName,
@@ -1368,33 +1351,8 @@ func (mg *ServiceInitGenerator) generateEndpointMiddleware(name, path string, if
 	// imports
 	f.Imports = []parser.NamedTypeValue{
 		parser.NewNameType("", "\"github.com/go-kit/kit/endpoint\""),
-		parser.NewNameType("", "\"github.com/go-kit/kit/metrics\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/log\""),
 	}
-
-	// InstrumentingMiddleware
-	f.Methods = append(f.Methods, parser.NewMethodWithComment(
-		"InstrumentingMiddleware",
-		`InstrumentingMiddleware returns an endpoint middleware that records
-					the duration of each invocation to the passed histogram. The middleware adds
-					a single field: "success", which is "true" if no error is returned, and
-					"false" otherwise.`,
-		parser.NamedTypeValue{},
-		`return func(next endpoint.Endpoint) endpoint.Endpoint {
-					return func(ctx context.Context, request interface{}) (response interface{}, err error) {
-						defer func(begin time.Time) {
-							duration.With("success", fmt.Sprint(err == nil)).Observe(time.Since(begin).Seconds())
-						}(time.Now())
-						return next(ctx, request)
-					}
-				}`,
-		[]parser.NamedTypeValue{
-			parser.NewNameType("duration", "metrics.Histogram"),
-		},
-		[]parser.NamedTypeValue{
-			parser.NewNameType("", "endpoint.Middleware"),
-		},
-	))
 
 	// LoggingMiddleware
 	f.Methods = append(f.Methods, parser.NewMethodWithComment(
@@ -1512,162 +1470,6 @@ func (mg *ServiceInitGenerator) generateServiceLoggingMiddleware(name, path stri
 	if err != nil {
 		return err
 	}
-	return nil
-}
-func (mg *ServiceInitGenerator) generateServiceInstrumentingMiddleware(name, path string, iface *parser.Interface) error {
-	logrus.Info("Generating service instrumenting middleware...")
-	te := template.NewEngine()
-	defaultFs := fs.Get()
-	f := parser.NewFile()
-	f.Package = "service"
-
-	f.Imports = append(f.Imports, []parser.NamedTypeValue{
-		parser.NewNameType("", "\"github.com/go-kit/kit/metrics\""),
-	}...)
-
-	f.Structs = []parser.Struct{
-		parser.NewStructWithComment(
-			"instrumentingMiddleware",
-			``,
-			[]parser.NamedTypeValue{
-				parser.NewNameType("requestCount", "metrics.Counter"),
-				parser.NewNameType("requestLatency", "metrics.Histogram"),
-				parser.NewNameType("next", fmt.Sprintf("%sService", utils.ToUpperFirstCamelCase(name))),
-			}),
-	}
-
-	f.Methods = append(f.Methods, parser.NewMethodWithComment(
-		"InstrumentingMiddleware",
-		`InstrumentingMiddleware returns a service middleware that instruments
-					the number of integers summed and characters concatenated over the lifetime of
-					the service.`,
-		parser.NamedTypeValue{},
-		fmt.Sprintf(`return func(next %sService) %sService {
-								return instrumentingMiddleware{
-									requestCount:   requestCount,
-									requestLatency: requestLatency,
-									next:           next,
-								}
-							}`, utils.ToUpperFirstCamelCase(name), utils.ToUpperFirstCamelCase(name)),
-		[]parser.NamedTypeValue{
-			parser.NewNameType("requestCount", "metrics.Counter"),
-			parser.NewNameType("requestLatency", "metrics.Histogram"),
-		},
-		[]parser.NamedTypeValue{
-			parser.NewNameType("", "Middleware"),
-		},
-	))
-
-	for _, v := range iface.Methods {
-		reqPrams := []parser.NamedTypeValue{}
-		for _, p := range v.Parameters {
-			if p.Type != "context.Context" {
-				reqPrams = append(reqPrams, parser.NewNameType(p.Name, p.Type))
-			}
-		}
-		resultPrams := []parser.NamedTypeValue{}
-		for _, p := range v.Results {
-			resultPrams = append(resultPrams, parser.NewNameType(p.Name, p.Type))
-		}
-		req := parser.NewStructWithComment(
-			v.Name+"Request",
-			fmt.Sprintf(
-				"%sRequest collects the request parameters for the %s method.",
-				v.Name, v.Name,
-			),
-			reqPrams,
-		)
-		res := parser.NewStructWithComment(
-			v.Name+"Response",
-			fmt.Sprintf(
-				"%sResponse collects the response values for the %s method.",
-				v.Name, v.Name,
-			),
-			resultPrams,
-		)
-		tmplModel := map[string]interface{}{
-			"Calling":  v,
-			"Request":  req,
-			"Response": res,
-		}
-		tRes, err := te.ExecuteString("{{template \"middleware_instrumenting\" .}}", tmplModel)
-		if err != nil {
-			return err
-		}
-		f.Methods = append(f.Methods, parser.NewMethod(
-			v.Name,
-			parser.NamedTypeValue{Name: "im", Type: "instrumentingMiddleware"},
-			tRes,
-			v.Parameters,
-			v.Results,
-		))
-	}
-
-	ifile := path + defaultFs.FilePathSeparator() + "instrumenting.go"
-	return defaultFs.WriteFile(ifile, f.String(), true)
-}
-
-func (mg *ServiceInitGenerator) generateServiceHealth(name, path string, iface *parser.Interface) error {
-	logrus.Info("Generating service health...")
-	defaultFs := fs.Get()
-	f := parser.NewFile()
-	f.Package = "service"
-
-	f.Imports = append(f.Imports, []parser.NamedTypeValue{
-		parser.NewNameType("", "\"google.golang.org/grpc/health/grpc_health_v1\""),
-	}...)
-
-	f.Structs = append(f.Structs, parser.NewStructWithComment(
-		"HealthImpl",
-		`HealthImpl grpc 健康檢查
-					https://studygolang.com/articles/18737`,
-		[]parser.NamedTypeValue{},
-	))
-
-	f.Methods = append(f.Methods, parser.NewMethodWithComment(
-		"Check",
-		`Check 實現健康檢查接口，這裏直接返回健康狀態，這裏也可以有更復雜的健康檢查策略，
-					比如根據服務器負載來返回
-					https://github.com/hashicorp/consul/blob/master/agent/checks/grpc.go
-					consul 檢查服務器的健康狀態，consul 用 google.golang.org/grpc/health/grpc_health_v1.HealthServer 接口，
-					實現了對 grpc健康檢查的支持，所以我們只需要實現先這個接口，consul 就能利用這個接口作健康檢查了`,
-		parser.NewNameType("h", "*HealthImpl"),
-		`return &grpc_health_v1.HealthCheckResponse{
-					Status: grpc_health_v1.HealthCheckResponse_SERVING,
-				}, nil`,
-		[]parser.NamedTypeValue{
-			parser.NewNameType("ctx", "context.Context"),
-			parser.NewNameType("req", "*grpc_health_v1.HealthCheckRequest"),
-		},
-		[]parser.NamedTypeValue{
-			parser.NewNameType("", "*grpc_health_v1.HealthCheckResponse"),
-			parser.NewNameType("", "error"),
-		},
-	))
-
-	f.Methods = append(f.Methods, parser.NewMethodWithComment(
-		"Watch",
-		`Watch HealthServer interface 有兩個方法
-					Check(context.Context, *HealthCheckRequest) (*HealthCheckResponse, error)
-					Watch(*HealthCheckRequest, Health_WatchServer) error
-					所以在 HealthImpl 結構提不僅要實現 Check 方法，還要實現 Watch 方法`,
-		parser.NewNameType("h", "*HealthImpl"),
-		`return nil`,
-		[]parser.NamedTypeValue{
-			parser.NewNameType("req", "*grpc_health_v1.HealthCheckRequest"),
-			parser.NewNameType("w", "grpc_health_v1.Health_WatchServer"),
-		},
-		[]parser.NamedTypeValue{
-			parser.NewNameType("", "error"),
-		},
-	))
-
-	lfile := path + defaultFs.FilePathSeparator() + "health.go"
-	err := defaultFs.WriteFile(lfile, f.String(), true)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
