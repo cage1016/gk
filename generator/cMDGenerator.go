@@ -173,9 +173,10 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 		parser.NewNameType("zipkinhttp", "\"github.com/openzipkin/zipkin-go/reporter/http\""),
 		parser.NewNameType("stdprometheus", "\"github.com/prometheus/client_golang/prometheus\""),
 		parser.NewNameType("", "\"google.golang.org/grpc\""),
+		parser.NewNameType("", "\"google.golang.org/grpc/health\""),
 		parser.NewNameType("", "\"google.golang.org/grpc/credentials\""),
-		parser.NewNameType("", "\"sourcegraph.com/sourcegraph/appdash\""),
-		parser.NewNameType("appdashot", "\"sourcegraph.com/sourcegraph/appdash/opentracing\""),
+		parser.NewNameType("healthgrpc", "\"google.golang.org/grpc/health/grpc_health_v1\""),
+		parser.NewNameType("", "\"google.golang.org/grpc/reflection\""),
 		parser.NewNameType("kitgrpc", "\"github.com/go-kit/kit/transport/grpc\""),
 		parser.NewNameType("", ""),
 		parser.NewNameType("pb", fmt.Sprintf(`"%s/pb/%s"`, projectPath, strings.ToLower(name))),
@@ -186,31 +187,17 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 
 	// constants
 	{
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("defConsulHost", "string", `"localhost"`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("defConsulPort", "string", `"8500"`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("defZipkinV1URL", "string", `""`))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("defZipkinV2URL", "string", `""`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("defLightstepToken", "string", `""`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("defAppdashAddr", "string", `""`))
 
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("defNameSpace", "string", "\"gokitconsul\""))
+		f.Constants = append(f.Constants, parser.NewNameTypeValue("defNameSpace", "string", "\"gokitconsulk8s\""))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("defServiceName", "string", fmt.Sprintf(`"%s"`, name)))
 
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("defLogLevel", "string", `"error"`))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("defServiceHost", "string", `"localhost"`))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("defHTTPPort", "string", `"8180"`))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("defGRPCPort", "string", `"8181"`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("defServerCert", "string", `""`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("defServerKey", "string", `""`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("defClientTLS", "string", `"false"`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("defCACerts", "string", `""`))
 
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("envConsulHost", "string", `"QS_CONSULT_HOST"`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("envConsultPort", "string", `"QS_CONSULT_PORT"`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("envZipkinV1URL", "string", `"QS_ZIPKIN_V1_URL"`))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("envZipkinV2URL", "string", `"QS_ZIPKIN_V2_URL"`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("envLightstepToken", "string", `"QS_LIGHT_STEP_TOKEN"`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("envAppdashAddr", "string", `"QS_APPDASH_ADDR"`))
 
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("envNameSpace", "string", fmt.Sprintf(`"QS_%s_NAMESPACE"`, name)))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("envServiceName", "string", fmt.Sprintf(`"QS_%s_SERVICE_NAME"`, name)))
@@ -219,10 +206,6 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("envServiceHost", "string", fmt.Sprintf(`"QS_%s_SERVICE_HOST"`, strings.ToUpper(name))))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("envHTTPPort", "string", fmt.Sprintf(`"QS_%s_HTTP_PORT"`, strings.ToUpper(name))))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("envGRPCPort", "string", fmt.Sprintf(`"QS_%s_GRPC_PORT"`, strings.ToUpper(name))))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("envServerCert", "string", fmt.Sprintf(`"QS_%s_SERVER_CERT"`, strings.ToUpper(name))))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("envServerKey", "string", fmt.Sprintf(`"QS_%s_SERVER_KEY"`, strings.ToUpper(name))))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("envClientTLS", "string", fmt.Sprintf(`"QS_%s_CLIENT_TLS"`, strings.ToUpper(name))))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("envCACerts", "string", fmt.Sprintf(`"QS_%s_CA_CERTS"`, strings.ToUpper(name))))
 	}
 
 	// config struct
@@ -232,19 +215,10 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 		parser.NewNameType("nameSpace", "string"),
 		parser.NewNameType("serviceName", "string"),
 		parser.NewNameType("logLevel", "string"),
-		parser.NewNameType("clientTLS", "bool"),
-		parser.NewNameType("caCerts", "string"),
 		parser.NewNameType("serviceHost", "string"),
 		parser.NewNameType("httpPort", "string"),
 		parser.NewNameType("grpcPort", "string"),
-		parser.NewNameType("serverCert", "string"),
-		parser.NewNameType("serverKey", "string"),
-		parser.NewNameType("consulHost", "string"),
-		parser.NewNameType("consultPort", "string"),
-		parser.NewNameType("zipkinV1URL", "string"),
 		parser.NewNameType("zipkinV2URL", "string"),
-		parser.NewNameType("lightstepToken", "string"),
-		parser.NewNameType("appdashAddr", "string"),
 	}
 	configStrct.Vars = append(configStrct.Vars, vars...)
 	f.Structs = append(f.Structs, configStrct)
@@ -281,11 +255,18 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 			logger = log.With(logger, "caller", log.DefaultCaller)
 		}
 		cfg := loadConfig(logger)
-	
+		logger = log.With(logger, "service", cfg.serviceName)
+
+		tracer := initOpentracing()
+		zipkinTracer := initZipkin(cfg.serviceName, cfg.httpPort, cfg.zipkinV2URL, logger)
+		service := NewServer(logger)
+		endpoints := endpoints.New(service, logger, tracer, zipkinTracer)
+		
 		errs := make(chan error, 2)
-		grpcServer, httpHandler := NewServer(cfg, logger)
-		go startHTTPServer(cfg, httpHandler, logger, errs)
-		go startGRPCServer(cfg, grpcServer, logger, errs)
+		hs := health.NewServer()
+		hs.SetServingStatus(cfg.serviceName, healthgrpc.HealthCheckResponse_SERVING)
+		go startHTTPServer(endpoints, tracer, zipkinTracer, cfg.httpPort, logger, errs)
+		go startGRPCServer(endpoints, tracer, zipkinTracer, cfg.grpcPort, hs, logger, errs)
 	
 		go func() {
 			c := make(chan os.Signal)
@@ -304,27 +285,13 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 	loadConfigFunc := parser.NewMethod(
 		"loadConfig",
 		parser.NamedTypeValue{},
-		`tls, err := strconv.ParseBool(env(envClientTLS, defClientTLS))
-				if err != nil {
-					level.Error(logger).Log("envClientTLS", envClientTLS, "error", err)
-				}
-
-				cfg.nameSpace = env(envNameSpace, defNameSpace)
+		`cfg.nameSpace = env(envNameSpace, defNameSpace)
 				cfg.serviceName = env(envServiceName, defServiceName)
 				cfg.logLevel = env(envLogLevel, defLogLevel)
-				cfg.clientTLS = tls
-				cfg.caCerts = env(envCACerts, defCACerts)
 				cfg.serviceHost = env(envServiceHost, defServiceHost)
 				cfg.httpPort = env(envHTTPPort, defHTTPPort)
 				cfg.grpcPort = env(envGRPCPort, defGRPCPort)
-				cfg.serverCert = env(envServerCert, defServerCert)
-				cfg.serverKey = env(envServerKey, defServerKey)
-				cfg.consulHost = env(envConsulHost, defConsulHost)
-				cfg.consultPort = env(envConsultPort, defConsulPort)
-				cfg.zipkinV1URL = env(envZipkinV1URL, defZipkinV1URL)
 				cfg.zipkinV2URL = env(envZipkinV2URL, defZipkinV2URL)
-				cfg.lightstepToken = env(envLightstepToken, defLightstepToken)
-				cfg.appdashAddr = env(envAppdashAddr, defAppdashAddr)
 				return cfg`,
 		[]parser.NamedTypeValue{
 			parser.NewNameType("logger", "log.Logger"),
@@ -336,112 +303,79 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 	f.Methods = append(f.Methods, loadConfigFunc)
 
 	// newService
-	body := `var tracer stdopentracing.Tracer
-			{
-				if cfg.zipkinV1URL != "" && cfg.zipkinV2URL == "" {
-					logger.Log("tracer", "Zipkin", "type", "OpenTracing", "URL", cfg.zipkinV1URL)
-					collector, err := zipkinot.NewHTTPCollector(cfg.zipkinV1URL)
-					if err != nil {
-						logger.Log("err", err)
-						os.Exit(1)
-					}
-					defer collector.Close()
-					var (
-						debug       = false
-						hostPort    = fmt.Sprintf("localhost:%s", cfg.httpPort)
-						serviceName = cfg.serviceName
-					)
-					recorder := zipkinot.NewRecorder(collector, debug, hostPort, serviceName)
-					tracer, err = zipkinot.NewTracer(recorder)
-					if err != nil {
-						logger.Log("err", err)
-						os.Exit(1)
-					}
-				} else if cfg.lightstepToken != "" {
-					logger.Log("tracer", "LightStep")
-					tracer = lightstep.NewTracer(lightstep.Options{AccessToken: cfg.lightstepToken})
-					defer lightstep.FlushLightStepTracer(tracer)
-				} else if cfg.appdashAddr != "" {
-					logger.Log("tracer", "Appdash", "addr", cfg.appdashAddr)
-					tracer = appdashot.NewTracer(appdash.NewRemoteCollector(cfg.appdashAddr))
-				} else {
-					tracer = stdopentracing.GlobalTracer()
-				}
-			}
-		
-			var zipkinTracer *zipkin.Tracer
-			{
-				var (
-					err           error
-					hostPort      = fmt.Sprintf("localhost:%s", cfg.httpPort)
-					serviceName   = cfg.serviceName
-					useNoopTracer = (cfg.zipkinV2URL == "")
-					reporter      = zipkinhttp.NewReporter(cfg.zipkinV2URL)
-				)
-				//defer reporter.Close()
-				zEP, _ := zipkin.NewEndpoint(serviceName, hostPort)
-				zipkinTracer, err = zipkin.NewTracer(reporter, zipkin.WithLocalEndpoint(zEP), zipkin.WithNoopTracer(useNoopTracer))
-				if err != nil {
-					logger.Log("err", err)
-					os.Exit(1)
-				}
-				if !useNoopTracer {
-					logger.Log("tracer", "Zipkin", "type", "Native", "URL", cfg.zipkinV2URL)
-				}
-			}
-		
-			var (
-				requestCount   metrics.Counter
-				requestLatency metrics.Histogram
-				fieldKeys      []string
-			)
-			{
-				fieldKeys = []string{"method", "error"}
-				requestCount = prometheus.NewCounterFrom(stdprometheus.CounterOpts{Namespace: cfg.nameSpace, Subsystem: cfg.serviceName, Name: "request_count", Help: "Number of requests received."}, fieldKeys)
-				requestLatency = prometheus.NewSummaryFrom(stdprometheus.SummaryOpts{Namespace: cfg.nameSpace, Subsystem: cfg.serviceName, Name: "request_latency_microseconds", Help: "Total duration of requests in microseconds."}, fieldKeys)
-			}
-		
-			var duration metrics.Histogram
-			{
-				duration = prometheus.NewSummaryFrom(stdprometheus.SummaryOpts{Namespace: cfg.nameSpace, Subsystem: cfg.serviceName, Name: "request_duration_ns", Help: "Request duration in nanoseconds."}, []string{"method", "success"})
-			}
-		
-			service := service.New(logger, requestCount, requestLatency)
-			endpoints := endpoints.New(service, logger, duration, tracer, zipkinTracer)
-			httpHandler := transports.NewHTTPHandler(endpoints, tracer, zipkinTracer, logger)
-			grpcServer := transports.MakeGRPCServer(endpoints, tracer, zipkinTracer, logger)
-		
-			return grpcServer, httpHandler`
+	body := `service := service.New(logger)
+			return service`
 	newServiceFunc := parser.NewMethod(
 		"NewServer",
 		parser.NamedTypeValue{},
 		body,
 		[]parser.NamedTypeValue{
-			parser.NewNameType("cfg", "config"),
 			parser.NewNameType("logger", "log.Logger"),
 		},
 		[]parser.NamedTypeValue{
-			parser.NewNameType("", fmt.Sprintf("pb.%sServer", utils.ToUpperFirstCamelCase(name))),
-			parser.NewNameType("", "http.Handler"),
+			parser.NewNameType("", fmt.Sprintf("service.%sService", utils.ToUpperFirstCamelCase(name))),
 		},
 	)
 	f.Methods = append(f.Methods, newServiceFunc)
+
+	// initOpentracing
+	initOpentracingFunc := parser.NewMethod(
+		"initOpentracing",
+		parser.NamedTypeValue{},
+		`return stdopentracing.GlobalTracer()`,
+		[]parser.NamedTypeValue{},
+		[]parser.NamedTypeValue{
+			parser.NewNameType("", "stdopentracing.Tracer"),
+		},
+	)
+	f.Methods = append(f.Methods, initOpentracingFunc)
+
+	// initZipkin
+	body = `var (
+				err           error
+				hostPort      = fmt.Sprintf("localhost:%s", httpPort)
+				useNoopTracer = (zipkinV2URL == "")
+				reporter      = zipkinhttp.NewReporter(zipkinV2URL)
+			)
+			zEP, _ := zipkin.NewEndpoint(serviceName, hostPort)
+			zipkinTracer, err = zipkin.NewTracer(reporter, zipkin.WithLocalEndpoint(zEP), zipkin.WithNoopTracer(useNoopTracer))
+			if err != nil {
+				logger.Log("err", err)
+				os.Exit(1)
+			}
+			if !useNoopTracer {
+				logger.Log("tracer", "Zipkin", "type", "Native", "URL", zipkinV2URL)
+			}
+		
+			return`
+	initZipkinFunc := parser.NewMethod(
+		"initZipkin",
+		parser.NamedTypeValue{},
+		body,
+		[]parser.NamedTypeValue{
+			parser.NewNameType("serviceName", ""),
+			parser.NewNameType("httpPort", ""),
+			parser.NewNameType("zipkinV2URL", "string"),
+			parser.NewNameType("logger", "log.Logger"),
+		},
+		[]parser.NamedTypeValue{
+			parser.NewNameType("zipkinTracer", "*zipkin.Tracer"),
+		},
+	)
+	f.Methods = append(f.Methods, initZipkinFunc)
 
 	// startHTTPServer
 	startHTTPServerFunc := parser.NewMethod(
 		"startHTTPServer",
 		parser.NamedTypeValue{},
-		`p := fmt.Sprintf(":%s", cfg.httpPort)
-				if cfg.serverCert != "" || cfg.serverKey != "" {
-					level.Info(logger).Log("serviceName", cfg.serviceName, "protocol", "HTTP", "exposed", cfg.httpPort, "certFile", cfg.serverCert, "keyFile", cfg.serverKey)
-					errs <- http.ListenAndServeTLS(p, cfg.serverCert, cfg.serverKey, httpHandler)
-				} else {
-					level.Info(logger).Log("serviceName", cfg.serviceName, "protocol", "HTTP", "exposed", cfg.httpPort)
-					errs <- http.ListenAndServe(p, httpHandler)
-				}`,
+		`p := fmt.Sprintf(":%s", port)
+				level.Info(logger).Log("protocol", "HTTP", "exposed", port)
+				errs <- http.ListenAndServe(p, transports.NewHTTPHandler(endpoints, tracer, zipkinTracer, logger))`,
 		[]parser.NamedTypeValue{
-			parser.NewNameType("cfg", "config"),
-			parser.NewNameType("httpHandler", "http.Handler"),
+			parser.NewNameType("endpoints", "endpoints.Endpoints"),
+			parser.NewNameType("tracer", "stdopentracing.Tracer"),
+			parser.NewNameType("zipkinTracer", "*zipkin.Tracer"),
+			parser.NewNameType("port", "string"),
 			parser.NewNameType("logger", "log.Logger"),
 			parser.NewNameType("errs", "chan error"),
 		},
@@ -450,27 +384,19 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 	f.Methods = append(f.Methods, startHTTPServerFunc)
 
 	// startGRPCServer
-	body = fmt.Sprintf(`p := fmt.Sprintf(":%%s", cfg.grpcPort)
+	body = fmt.Sprintf(`p := fmt.Sprintf(":%%s", port)
 			listener, err := net.Listen("tcp", p)
 			if err != nil {
-				level.Error(logger).Log("serviceName", cfg.serviceName, "protocol", "GRPC", "listen", cfg.grpcPort, "err", err)
+				level.Error(logger).Log("protocol", "GRPC", "listen", port, "err", err)
 				os.Exit(1)
 			}
 
 			var server *grpc.Server
-			if cfg.serverCert != "" || cfg.serverKey != "" {
-				creds, err := credentials.NewServerTLSFromFile(cfg.serverCert, cfg.serverKey)
-				if err != nil {
-					level.Error(logger).Log("serviceName", cfg.serviceName, "certificates", creds, "err", err)
-					os.Exit(1)
-				}
-				level.Info(logger).Log("serviceName", cfg.serviceName, "protocol", "GRPC", "exposed", cfg.grpcPort, "certFile", cfg.serverCert, "keyFile", cfg.serverKey)
-				server = grpc.NewServer(grpc.UnaryInterceptor(kitgrpc.Interceptor), grpc.Creds(creds))
-			} else {
-				level.Info(logger).Log("serviceName", cfg.serviceName, "protocol", "GRPC", "exposed", cfg.grpcPort)
-				server = grpc.NewServer(grpc.UnaryInterceptor(kitgrpc.Interceptor))
-			}	
-			pb.Register%sServer(server, grpcServer)
+			level.Info(logger).Log("protocol", "GRPC", "protocol", "GRPC", "exposed", port)
+			server = grpc.NewServer(grpc.UnaryInterceptor(kitgrpc.Interceptor))	
+			pb.Register%sServer(server, transports.MakeGRPCServer(endpoints, tracer, zipkinTracer, logger))
+			healthgrpc.RegisterHealthServer(server, hs)
+			reflection.Register(server)
 			errs <- server.Serve(listener)`, utils.ToUpperFirstCamelCase(name))
 
 	startGRPCServerFunc := parser.NewMethod(
@@ -478,8 +404,11 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 		parser.NamedTypeValue{},
 		body,
 		[]parser.NamedTypeValue{
-			parser.NewNameType("cfg", "config"),
-			parser.NewNameType("grpcServer", fmt.Sprintf("pb.%sServer", utils.ToUpperFirstCamelCase(name))),
+			parser.NewNameType("endpoints", "endpoints.Endpoints"),
+			parser.NewNameType("tracer", "stdopentracing.Tracer"),
+			parser.NewNameType("zipkinTracer", "*zipkin.Tracer"),
+			parser.NewNameType("port", "string"),
+			parser.NewNameType("hs", "*health.Server"),
 			parser.NewNameType("logger", "log.Logger"),
 			parser.NewNameType("errs", "chan error"),
 		},
