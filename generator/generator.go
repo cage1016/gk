@@ -29,15 +29,15 @@ func (sg *ServiceGenerator) Generate(name string) error {
 		return err
 	}
 
-	f.Interfaces = []parser.Interface{
-		parser.NewInterfaceWithComment(iname, fmt.Sprintf(`%s implements yor service methods.
-		e.x: Foo(ctx context.Context,s string)(rs string, err error)`, iname), []parser.Method{}),
-	}
+	//f.Interfaces = []parser.Interface{
+	//	parser.NewInterfaceWithComment(iname, fmt.Sprintf(`%s implements yor service methods.
+	//	e.x: Foo(ctx context.Context,s string)(rs string, err error)`, iname), []parser.Method{}),
+	//}
 	svcInterface := []parser.Interface{
 		parser.NewInterfaceWithComment(iname, `Service describes a service that adds things together
 		Implement yor service methods methods.
 		e.x: Foo(ctx context.Context, s string)(rs string, err error)`, []parser.Method{
-			parser.NewMethod("Foo", parser.NamedTypeValue{}, "", []parser.NamedTypeValue{
+			parser.NewMethodWithComment("Foo", "[method=post,expose=true]", parser.NamedTypeValue{}, "", []parser.NamedTypeValue{
 				parser.NewNameType("ctx", "context.Context"),
 				parser.NewNameType("s", "string"),
 			}, []parser.NamedTypeValue{

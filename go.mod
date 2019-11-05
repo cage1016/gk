@@ -8,6 +8,7 @@ require (
 	github.com/go-errors/errors v1.0.1
 	github.com/go-kit/kit v0.8.0
 	github.com/golang/protobuf v1.3.1
+	github.com/kevinburke/go-bindata v3.16.0+incompatible // indirect
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/afero v1.2.2
 	github.com/spf13/cobra v0.0.5

@@ -187,7 +187,7 @@ func (fp *FileParser) parseVars(ds []ast.Spec) []NamedTypeValue {
 
 				if vsp.Doc.Text() != "" {
 					vars = append(vars, NewNameTypeValueWithComment(vsp.Names[0].Name, "", bd, comentgroupToText(vsp.Doc)))
-				}else{
+				} else {
 					vars = append(vars, NewNameTypeValue(vsp.Names[0].Name, "", bd))
 				}
 			} else {
@@ -205,13 +205,13 @@ func (fp *FileParser) parseVars(ds []ast.Spec) []NamedTypeValue {
 				}
 				if vsp.Doc.Text() != "" {
 					vars = append(vars, NewNameTypeValueWithComment(tp.Name, vsp.Names[0].Name, bd, comentgroupToText(vsp.Doc)))
-				}else{
+				} else {
 					vars = append(vars, NewNameTypeValue(tp.Name, vsp.Names[0].Name, bd))
 				}
 			} else {
 				if vsp.Doc.Text() != "" {
 					vars = append(vars, NewNameTypeWithCommment(vsp.Names[0].Name, tp.Name, comentgroupToText(vsp.Doc)))
-				}else{
+				} else {
 					vars = append(vars, NewNameType(vsp.Names[0].Name, tp.Name))
 				}
 			}
@@ -308,6 +308,12 @@ func (fp *FileParser) parseFieldListAsMethods(list *ast.FieldList) []Method {
 			case *ast.FuncType:
 				m := Method{
 					Name: p.Names[0].Name,
+					Comment: func() (r string) {
+						if p.Doc != nil {
+							return prepareComments(strings.TrimRight(p.Doc.Text(),"\n"))
+						}
+						return ""
+					}(),
 				}
 				m.Parameters = fp.parseFieldListAsNamedTypes(t.Params)
 				m.Results = fp.parseFieldListAsNamedTypes(t.Results)
