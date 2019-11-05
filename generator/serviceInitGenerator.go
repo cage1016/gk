@@ -377,6 +377,11 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 			},
 		))
 		for _, m := range iface.Methods {
+			cc := m.GetCustomField()
+			if cc.Expose == false{
+				continue
+			}
+
 			handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
 				fmt.Sprintf("decodeHTTP%sRequest", m.Name),
 				fmt.Sprintf(`decodeHTTP%sRequest is a transport/http.DecodeRequestFunc that decodes a
@@ -478,6 +483,11 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 		))
 
 		for _, m := range iface.Methods {
+			cc := m.GetCustomField()
+			if cc.Expose == false{
+				continue
+			}
+
 			handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
 				fmt.Sprintf("encodeHTTP%sRequest", m.Name),
 				fmt.Sprintf(`encodeHTTP%sRequest is a transport/http.EncodeRequestFunc that
@@ -523,7 +533,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 			))
 
 			fcname := utils.ToLowerFirstCamelCase(m.Name)
-			handlerFile.Methods[len(iface.Methods)*1+2].Body += "\n" + fmt.Sprintf(
+			handlerFile.Methods[iface.ExposeMethodLength()*1+2].Body += "\n" + fmt.Sprintf(
 				`// The %s endpoint is the same thing, with slightly different
 						// middlewares to demonstrate how to specialize per-endpoint.
 						var %sEndpoint endpoint.Endpoint
@@ -558,9 +568,9 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 				fcname,
 				m.Name, utils.ToLowerFirstCamelCase(m.Name))
 
-			handlerFile.Methods[len(iface.Methods)*1+2].Body += "\n"
+			handlerFile.Methods[iface.ExposeMethodLength()*1+2].Body += "\n"
 		}
-		handlerFile.Methods[len(iface.Methods)*1+2].Body += "\n" + `// Returning the endpoint.Set as a service.Service relies on the
+		handlerFile.Methods[iface.ExposeMethodLength()*1+2].Body += "\n" + `// Returning the endpoint.Set as a service.Service relies on the
 	// endpoint.Set implementing the Service methods. That's just a simple bit
 	// of glue code.
 	return e, nil`

@@ -38,3 +38,12 @@ func (i *Interface) String() string {
 	}
 	return string(dt)
 }
+
+func (i *Interface) ExposeMethodLength() (l int) {
+	for _, x := range i.Methods {
+		if x.GetCustomField().Expose == true {
+			l++
+		}
+	}
+	return
+}
