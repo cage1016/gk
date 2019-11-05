@@ -382,15 +382,23 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 				continue
 			}
 
+			var mi string
+			if strings.ToUpper(cc.Method) == "POST" {
+				mi = fmt.Sprintf(`var req endpoints.%sRequest
+											err := json.NewDecoder(r.Body).Decode(&req)
+											return req,err`, m.Name)
+			}else{
+				mi = fmt.Sprintf(`var req endpoints.%sRequest
+											return req, nil`, m.Name)
+			}
+
 			handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
 				fmt.Sprintf("decodeHTTP%sRequest", m.Name),
 				fmt.Sprintf(`decodeHTTP%sRequest is a transport/http.DecodeRequestFunc that decodes a
 					 JSON-encoded request from the HTTP request body. Primarily useful in a server.`,
 					m.Name),
 				parser.NamedTypeValue{},
-				fmt.Sprintf(`var req endpoints.%sRequest
-			err := json.NewDecoder(r.Body).Decode(&req)
-			return req,err`, m.Name),
+				mi,
 				[]parser.NamedTypeValue{
 					parser.NewNameType("_", "context.Context"),
 					parser.NewNameType("r", "*http.Request"),
@@ -539,7 +547,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 						var %sEndpoint endpoint.Endpoint
 						{
 							%sEndpoint = httptransport.NewClient(
-								"POST",
+								"%s",
 								copyURL(u, "/%s"),
 								encodeHTTP%sRequest,
 								decodeHTTP%sResponse,
@@ -557,6 +565,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 				m.Name,
 				fcname,
 				fcname,
+				strings.ToUpper(cc.Method),
 				strings.ToLower(m.Name),
 				m.Name,
 				m.Name,
