@@ -184,6 +184,11 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 	grpcStruct := parser.NewStruct("grpcServer", []parser.NamedTypeValue{})
 
 	for _, v := range iface.Methods {
+		cc := v.GetCustomField()
+		if cc.Expose == false {
+			continue
+		}
+
 		grpcStruct.Vars = append(grpcStruct.Vars, parser.NewNameType(
 			utils.ToLowerFirstCamelCase(v.Name),
 			"grpctransport.Handler",
@@ -251,6 +256,11 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 		//fmt.Println(handler.String())
 
 		for _, v := range iface.Methods {
+			cc := v.GetCustomField()
+			if cc.Expose == false {
+				continue
+			}
+
 			// DecodeGRPC Request
 			{
 				reqPrams := []parser.NamedTypeValue{}
@@ -372,9 +382,9 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 						),
 						`, utils.ToLowerFirstCamelCase(v.Name), v.Name, v.Name, v.Name, v.Name)
 
-			handler.Methods[len(iface.Methods)].Body += "\n" + body
+			handler.Methods[iface.ExposeMethodLength()].Body += "\n" + body
 		}
-		handler.Methods[len(iface.Methods)].Body += `}`
+		handler.Methods[iface.ExposeMethodLength()].Body += `}`
 	}
 
 	// NewGRPCClient
@@ -418,6 +428,11 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 		))
 
 		for _, v := range iface.Methods {
+			cc := v.GetCustomField()
+			if cc.Expose == false{
+				continue
+			}
+
 			// encodeGRPC Request
 			{
 				reqPrams := []parser.NamedTypeValue{}
@@ -566,17 +581,17 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 				fcname,
 			)
 
-			handler.Methods[len(iface.Methods)*3+1].Body += "\n\n" + body
+			handler.Methods[iface.ExposeMethodLength()*3+1].Body += "\n\n" + body
 		}
 
-		l := len(iface.Methods) + 2
+		l := iface.ExposeMethodLength() + 2
 		body := make([]string, l)
 		body[0] = "return endpoints.Endpoints{"
 		for i, v := range iface.Methods {
 			body[i+1] = fmt.Sprintf(`%sEndpoint: %sEndpoint,`, v.Name, utils.ToLowerFirstCamelCase(v.Name))
 		}
 		body[l-1] = "}"
-		handler.Methods[len(iface.Methods)*3+1].Body += "\n\n" + strings.Join(body, "\n")
+		handler.Methods[iface.ExposeMethodLength()*3+1].Body += "\n\n" + strings.Join(body, "\n")
 	}
 
 	// annoying helper functions

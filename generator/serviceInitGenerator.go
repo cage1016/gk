@@ -735,6 +735,11 @@ func (sg *ServiceInitGenerator) generateGRPCTransport(name string, iface *parser
 	}
 	pbModel := ProtobufModel{Name: utils.ToUpperFirstCamelCase(name)}
 	for _, v := range iface.Methods {
+		cc := v.GetCustomField()
+		if cc.Expose == false {
+			continue
+		}
+
 		m := parser.Method{Name: v.Name}
 		for k, kv := range v.Parameters {
 			if kv.Type == "context.Context" {
