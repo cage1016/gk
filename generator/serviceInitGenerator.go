@@ -307,6 +307,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 		parser.NewNameType("", "\"strings\""),
 		parser.NewNameType("", "\"time\""),
 		parser.NewNameType("", ""),
+		parser.NewNameType("", "\"github.com/go-zoo/bone\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/circuitbreaker\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/endpoint\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/log\""),
@@ -365,7 +366,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 						zipkinServer,
 					}
 
-					m := http.NewServeMux()`,
+					m := bone.New()`,
 			[]parser.NamedTypeValue{
 				parser.NewNameType("endpoints", "endpoints.Endpoints"),
 				parser.NewNameType("otTracer", "stdopentracing.Tracer"),
@@ -408,15 +409,15 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 					parser.NewNameType("", "error"),
 				},
 			))
-			handlerFile.Methods[1].Body += "\n" + fmt.Sprintf(`m.Handle("/%s", httptransport.NewServer(
+			handlerFile.Methods[1].Body += "\n" + fmt.Sprintf(`m.%s("/%s", httptransport.NewServer(
         endpoints.%sEndpoint,
         decodeHTTP%sRequest,
         httptransport.EncodeJSONResponse,
 		append(options, httptransport.ServerBefore(opentracing.HTTPToContext(otTracer, "%s", logger)))...,
-    ))`, utils.ToLowerSnakeCase(m.Name), m.Name, m.Name, m.Name)
+    ))`, utils.ToUpperFirstCamelCase(cc.Method), utils.ToLowerSnakeCase(m.Name), m.Name, m.Name, m.Name)
 		}
 
-		handlerFile.Methods[1].Body += "\n" + `m.Handle("/metrics", promhttp.Handler())
+		handlerFile.Methods[1].Body += "\n" + `m.Get("/metrics", promhttp.Handler())
 												return m`
 	}
 
