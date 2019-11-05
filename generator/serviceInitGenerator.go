@@ -1010,7 +1010,8 @@ func (sg *ServiceInitGenerator) generateEndpoints(name string, iface *parser.Int
 	}
 
 	for _, v := range iface.Methods {
-		f.Structs[0].Vars = append(f.Structs[0].Vars, parser.NewNameType(v.Name+"Endpoint", "endpoint.Endpoint"))
+		cc := v.GetCustomField()
+
 		reqPrams := []parser.NamedTypeValue{}
 		for _, p := range v.Parameters {
 			if p.Type != "context.Context" {
@@ -1049,6 +1050,21 @@ func (sg *ServiceInitGenerator) generateEndpoints(name string, iface *parser.Int
 		if err != nil {
 			return err
 		}
+
+		if cc.Expose == false {
+			f.Methods = append(f.Methods, parser.NewMethodWithComment(
+				v.Name,
+				fmt.Sprintf(`endpoint implement %s interface
+							but do nothing with expose=false`, iface.Name),
+				parser.NewNameType("e", "Endpoints"),
+				`panic("implement me")`,
+				v.Parameters,
+				v.Results,
+			))
+			continue
+		}
+		f.Structs[0].Vars = append(f.Structs[0].Vars, parser.NewNameType(v.Name+"Endpoint", "endpoint.Endpoint"))
+
 		f.Methods = append(f.Methods, parser.NewMethodWithComment(
 			"Make"+v.Name+"Endpoint",
 			fmt.Sprintf(`Make%sEndpoint returns an endpoint that invokes %s on the service.
@@ -1173,6 +1189,11 @@ func (sg *ServiceInitGenerator) generateEndpointsRequests(name string, iface *pa
 	))
 
 	for _, v := range iface.Methods {
+		cc := v.GetCustomField()
+		if cc.Expose == false {
+			continue
+		}
+
 		reqPrams := []parser.NamedTypeValue{}
 		for _, p := range v.Parameters {
 			if p.Type != "context.Context" {
@@ -1209,12 +1230,12 @@ func (sg *ServiceInitGenerator) generateEndpointsRequests(name string, iface *pa
 		}
 	}
 
-	nm := len(iface.Methods)
+	nm := iface.ExposeMethodLength()
 	var body = make([]string, nm*2+2)
 	body[0] = "package endpoints"
 	body[1] = f.Interfaces[0].String()
 
-	for i, _ := range iface.Methods {
+	for i := 0; i < nm; i++ {
 		body[2*i+2] = f.Structs[i].String()
 		body[2*i+3] = f.Methods[i].String()
 	}
@@ -1266,6 +1287,11 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 	f.Package = "endpoints"
 
 	for _, v := range iface.Methods {
+		cc := v.GetCustomField()
+		if cc.Expose == false {
+			continue
+		}
+
 		reqPrams := []parser.NamedTypeValue{}
 		for _, p := range v.Parameters {
 			if p.Type != "context.Context" {
@@ -1311,7 +1337,7 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 		))
 	}
 
-	nm := len(iface.Methods)
+	nm := iface.ExposeMethodLength()
 	var body = make([]string, 3+nm*3)
 	tRes, err := te.ExecuteString("{{template \"vars\" .}}", f.Vars)
 	if err != nil {
@@ -1325,7 +1351,7 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 )`
 	a, _ := format.Source([]byte(strings.TrimSpace(tRes)))
 	body[1] = string(a)
-	for i, _ := range iface.Methods {
+	for i := 0; i < nm; i++ {
 		body[3*i+2] = f.Structs[i].String()
 		body[3*i+3] = f.Methods[i*2+0].String()
 		body[3*i+4] = f.Methods[i*2+1].String()

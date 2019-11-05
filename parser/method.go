@@ -3,6 +3,8 @@ package parser
 import (
 	"fmt"
 	"go/format"
+	"regexp"
+	"strconv"
 	"strings"
 
 	template "github.com/kujtimiihoxha/gk/templates"
@@ -16,6 +18,11 @@ type Method struct {
 	Body       string
 	Parameters []NamedTypeValue
 	Results    []NamedTypeValue
+}
+
+type CustomField struct {
+	Method string
+	Expose bool
 }
 
 func NewMethod(name string, str NamedTypeValue, body string, parameters, results []NamedTypeValue) Method {
@@ -58,4 +65,34 @@ func (m *Method) String() string {
 		logrus.Panic(err)
 	}
 	return string(dt)
+}
+
+var myExp = regexp.MustCompile(`(method=(?P<method>\w+))?,?(expose=(?P<expose>\w+))?`)
+
+func (m *Method) GetCustomField() (c CustomField) {
+	c.Method = "POST"
+	c.Expose = true
+	if m.Comment == "" {
+		return
+	}
+
+	match := myExp.FindAllStringSubmatch(m.Comment, -1)
+	result := make(map[string]string)
+	for i, name := range myExp.SubexpNames() {
+		if i != 0 && name != "" {
+			result[name] = match[4][i]
+		}
+	}
+
+	b, err := strconv.ParseBool(result["expose"])
+	if err != nil {
+		c.Expose = true
+	} else {
+		c.Expose = b
+	}
+
+	if result["method"] != "" {
+		c.Method = result["method"]
+	}
+	return
 }
