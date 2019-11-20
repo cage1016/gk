@@ -94,7 +94,7 @@ func (sg *ThriftInitGenerator) Generate(name string) error {
 	if len(iface.Methods) == 0 {
 		return errors.New("The service has no method please implement the interface methods")
 	}
-	path, err = te.ExecuteString(viper.GetString("transport.path"), map[string]string{
+	path, err = te.ExecuteString(viper.GetString("transports.path"), map[string]string{
 		"ServiceName":   name,
 		"TransportType": "thrift",
 	})
@@ -243,7 +243,7 @@ func (sg *ThriftInitGenerator) Generate(name string) error {
 	}
 	return req`
 	handler.Structs = append(handler.Structs, thriftStruct)
-	fname, err = te.ExecuteString(viper.GetString("transport.file_name"), map[string]string{
+	fname, err = te.ExecuteString(viper.GetString("transports.file_name"), map[string]string{
 		"ServiceName":   name,
 		"TransportType": "thrift",
 	})

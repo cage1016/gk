@@ -636,7 +636,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 		},
 	))
 
-	path, err := te.ExecuteString(viper.GetString("transport.path"), map[string]string{
+	path, err := te.ExecuteString(viper.GetString("transports.path"), map[string]string{
 		"ServiceName":   name,
 		"TransportType": "http",
 	})
@@ -647,7 +647,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 	if err != nil {
 		return err
 	}
-	fname, err := te.ExecuteString(viper.GetString("transport.file_name"), map[string]string{
+	fname, err := te.ExecuteString(viper.GetString("transports.file_name"), map[string]string{
 		"ServiceName":   name,
 		"TransportType": "http",
 	})
@@ -833,7 +833,7 @@ func (sg *ServiceInitGenerator) generateThriftTransport(name string, iface *pars
 		})
 	}
 	model["Methods"] = mthds
-	path, err := te.ExecuteString(viper.GetString("transport.path"), map[string]string{
+	path, err := te.ExecuteString(viper.GetString("transports.path"), map[string]string{
 		"ServiceName":   name,
 		"TransportType": "thrift",
 	})

@@ -75,7 +75,7 @@ func initViperDefaults() {
 	viper.SetDefault("middleware.file_name", "middleware.go")
 	viper.SetDefault("endpoints.path", "{{toSnakeCase .ServiceName}}"+afero.FilePathSeparator+"pkg"+afero.FilePathSeparator+"endpoints")
 	viper.SetDefault("endpoints.file_name", "endpoints.go")
-	viper.SetDefault("transport.path", "{{toSnakeCase .ServiceName}}"+afero.FilePathSeparator+"pkg"+afero.FilePathSeparator+"{{.TransportType}}")
-	viper.SetDefault("transport.file_name", "handler.go")
+	viper.SetDefault("transports.path", "{{toSnakeCase .ServiceName}}"+afero.FilePathSeparator+"pkg"+afero.FilePathSeparator+"{{.TransportType}}")
+	viper.SetDefault("transports.file_name", "handler.go")
 	viper.SetDefault("default_transport", "http")
 }

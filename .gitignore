@@ -40,3 +40,6 @@ vendor/
 
 .DS_Store
 *.iml
+
+pkg
+pb

@@ -199,8 +199,8 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("envZipkinV2URL", "string", `"QS_ZIPKIN_V2_URL"`))
 
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("envNameSpace", "string", fmt.Sprintf(`"QS_%s_NAMESPACE"`, name)))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("envServiceName", "string", fmt.Sprintf(`"QS_%s_SERVICE_NAME"`, name)))
+		f.Constants = append(f.Constants, parser.NewNameTypeValue("envNameSpace", "string", fmt.Sprintf(`"QS_%s_NAMESPACE"`, strings.ToUpper(name))))
+		f.Constants = append(f.Constants, parser.NewNameTypeValue("envServiceName", "string", fmt.Sprintf(`"QS_%s_SERVICE_NAME"`, strings.ToUpper(name))))
 
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("envLogLevel", "string", fmt.Sprintf(`"QS_%s_LOG_LEVEL"`, strings.ToUpper(name))))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("envServiceHost", "string", fmt.Sprintf(`"QS_%s_SERVICE_HOST"`, strings.ToUpper(name))))
