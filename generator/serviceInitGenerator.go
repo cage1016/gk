@@ -307,6 +307,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 		parser.NewNameType("", "\"strings\""),
 		parser.NewNameType("", "\"time\""),
 		parser.NewNameType("", ""),
+		parser.NewNameType("kitjwt", "\"github.com/go-kit/kit/auth/jwt\""),
 		parser.NewNameType("", "\"github.com/go-zoo/bone\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/circuitbreaker\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/endpoint\""),
@@ -379,7 +380,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 		))
 		for _, m := range iface.Methods {
 			cc := m.GetCustomField()
-			if cc.Expose == false{
+			if cc.Expose == false {
 				continue
 			}
 
@@ -388,7 +389,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 				mi = fmt.Sprintf(`var req endpoints.%sRequest
 											err := json.NewDecoder(r.Body).Decode(&req)
 											return req,err`, m.Name)
-			}else{
+			} else {
 				mi = fmt.Sprintf(`var req endpoints.%sRequest
 											return req, nil`, m.Name)
 			}
@@ -413,7 +414,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
         endpoints.%sEndpoint,
         decodeHTTP%sRequest,
         httptransport.EncodeJSONResponse,
-		append(options, httptransport.ServerBefore(opentracing.HTTPToContext(otTracer, "%s", logger)))...,
+		append(options, httptransport.ServerBefore(opentracing.HTTPToContext(otTracer, "%s", logger), kitjwt.HTTPToContext()))...,
     ))`, utils.ToUpperFirstCamelCase(cc.Method), utils.ToLowerSnakeCase(m.Name), m.Name, m.Name, m.Name)
 		}
 
@@ -438,13 +439,6 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 						if err != nil {
 							return nil, err
 						}
-					
-						// We construct a single ratelimiter middleware, to limit the total outgoing
-						// QPS from this client to all methods on the remote instance. We also
-						// construct per-endpoint circuitbreaker middlewares to demonstrate how
-						// that's done, although they could easily be combined into a single breaker
-						// for the entire remote instance, too.
-						limiter := ratelimit.NewErroringLimiter(rate.NewLimiter(rate.Every(time.Second), 100))
 					
 						// Zipkin HTTP Client Trace can either be instantiated per endpoint with a
 						// provided operation name or a global tracing client can be instantiated
@@ -493,7 +487,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 
 		for _, m := range iface.Methods {
 			cc := m.GetCustomField()
-			if cc.Expose == false{
+			if cc.Expose == false {
 				continue
 			}
 
@@ -556,11 +550,6 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 							).Endpoint()
 							%sEndpoint = opentracing.TraceClient(otTracer, "%s")(%sEndpoint)
 							%sEndpoint = zipkin.TraceEndpoint(zipkinTracer, "%s")(%sEndpoint)
-							%sEndpoint = limiter(%sEndpoint)
-							%sEndpoint = circuitbreaker.Gobreaker(gobreaker.NewCircuitBreaker(gobreaker.Settings{
-								Name:    "%s",
-								Timeout: 30 * time.Second,
-							}))(%sEndpoint)
 							e.%sEndpoint = %sEndpoint
 						}`,
 				m.Name,
@@ -572,10 +561,6 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 				m.Name,
 				fcname, m.Name, fcname,
 				fcname, m.Name, fcname,
-				fcname, fcname,
-				fcname,
-				m.Name,
-				fcname,
 				m.Name, utils.ToLowerFirstCamelCase(m.Name))
 
 			handlerFile.Methods[iface.ExposeMethodLength()*1+2].Body += "\n"
@@ -607,6 +592,8 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 							w.WriteHeader(http.StatusBadRequest)
 						case io.EOF:
 							w.WriteHeader(http.StatusBadRequest)
+						case kitjwt.ErrTokenContextMissing:
+							w.WriteHeader(http.StatusUnauthorized)
 						default:
 							switch err.(type) {
 							case *json.SyntaxError:
@@ -1008,7 +995,6 @@ func (sg *ServiceInitGenerator) generateEndpoints(name string, iface *parser.Int
 	servicePath = strings.Replace(servicePath, "\\", "/", -1)
 	serviceImport := projectPath + "/" + servicePath
 	f.Imports = []parser.NamedTypeValue{
-		parser.NewNameType("", `"github.com/sony/gobreaker"`),
 		parser.NewNameType("stdzipkin", `"github.com/openzipkin/zipkin-go"`),
 		parser.NewNameType("stdopentracing", "\"github.com/opentracing/opentracing-go\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/endpoint\""),
@@ -1127,8 +1113,6 @@ func (sg *ServiceInitGenerator) generateEndpoints(name string, iface *parser.Int
 		{
 			method := "%s"
 			%sEndpoint = Make%sEndpoint(svc)
-            %sEndpoint = ratelimit.NewErroringLimiter(rate.NewLimiter(rate.Every(time.Second), 100))(%sEndpoint)
-			%sEndpoint = circuitbreaker.Gobreaker(gobreaker.NewCircuitBreaker(gobreaker.Settings{}))(%sEndpoint)
 			%sEndpoint = opentracing.TraceServer(otTracer, method)(%sEndpoint)
 			%sEndpoint = zipkin.TraceEndpoint(zipkinTracer,  method)(%sEndpoint)
 			%sEndpoint = LoggingMiddleware(log.With(logger, "method", method))(%sEndpoint)
@@ -1136,20 +1120,11 @@ func (sg *ServiceInitGenerator) generateEndpoints(name string, iface *parser.Int
 		}
 		`, lowerName,
 			lowerName,
-			lowerName,
-			upperName,
-			lowerName,
-			lowerName,
-			lowerName,
-			lowerName,
-			lowerName,
-			lowerName,
-			lowerName,
-			lowerName,
-			lowerName,
-			lowerName,
-			upperName,
-			lowerName)
+			lowerName, upperName,
+			lowerName, lowerName,
+			lowerName, lowerName,
+			lowerName, lowerName,
+			upperName, lowerName)
 	}
 	f.Methods[0].Body += "\n\n return ep"
 	return defaultFs.WriteFile(eFile, f.String(), false)
@@ -1428,6 +1403,36 @@ func (mg *ServiceInitGenerator) generateEndpointMiddleware(name, path string, if
 		},
 		[]parser.NamedTypeValue{
 			parser.NewNameType("", "endpoint.Middleware"),
+		},
+	))
+
+	//AuthnMiddleware
+	f.Methods = append(f.Methods, parser.NewMethodWithComment(
+		"AuthnMiddleware",
+		`AuthnMiddleware returns an endpoint middleware that apply authentication func`,
+		parser.NamedTypeValue{},
+		`return endpoints`,
+		[]parser.NamedTypeValue{
+			parser.NewNameType("n", "endpoint.Middleware"),
+			parser.NewNameType("endpoints", "Endpoints"),
+		},
+		[]parser.NamedTypeValue{
+			parser.NewNameType("", "Endpoints"),
+		},
+	))
+
+	//AuthzMiddleware
+	f.Methods = append(f.Methods, parser.NewMethodWithComment(
+		"AuthzMiddleware",
+		`AuthzMiddleware returns an endpoint middleware that apply authorization func (opa rbac)`,
+		parser.NamedTypeValue{},
+		`return endpoints`,
+		[]parser.NamedTypeValue{
+			parser.NewNameType("z func(action string, resource string)", "endpoint.Middleware"),
+			parser.NewNameType("endpoints", "Endpoints"),
+		},
+		[]parser.NamedTypeValue{
+			parser.NewNameType("", "Endpoints"),
 		},
 	))
 

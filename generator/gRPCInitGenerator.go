@@ -165,17 +165,14 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 	handler.Imports = []parser.NamedTypeValue{
 		parser.NewNameType("", "\"context\""),
 		parser.NewNameType("", "\"errors\""),
-		parser.NewNameType("", "\"github.com/go-kit/kit/circuitbreaker\""),
+		parser.NewNameType("kitjwt", "\"github.com/go-kit/kit/auth/jwt\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/endpoint\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/log\""),
-		parser.NewNameType("", "\"github.com/go-kit/kit/ratelimit\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/tracing/opentracing\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/tracing/zipkin\""),
 		parser.NewNameType("grpctransport", "\"github.com/go-kit/kit/transport/grpc\""),
 		parser.NewNameType("stdopentracing", "\"github.com/opentracing/opentracing-go\""),
 		parser.NewNameType("stdzipkin", "\"github.com/openzipkin/zipkin-go\""),
-		parser.NewNameType("", "\"github.com/sony/gobreaker\""),
-		parser.NewNameType("", "\"golang.org/x/time/rate\""),
 		parser.NewNameType("", fmt.Sprintf("\"%s\"", pbImport)),
 		parser.NewNameType("", fmt.Sprintf("\"%s\"", endpointsImport)),
 		parser.NewNameType("", fmt.Sprintf("\"%s\"", serviceImport)),
@@ -378,7 +375,7 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 							endpoints.%sEndpoint,
 							decodeGRPC%sRequest,
 							encodeGRPC%sResponse,
-							append(options, grpctransport.ServerBefore(opentracing.GRPCToContext(otTracer, "%s", logger)))...,
+							append(options, grpctransport.ServerBefore(opentracing.GRPCToContext(otTracer, "%s", logger), kitjwt.GRPCToContext()))...,
 						),
 						`, utils.ToLowerFirstCamelCase(v.Name), v.Name, v.Name, v.Name, v.Name)
 
@@ -396,14 +393,7 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 						eventually closing the underlying transport. We bake-in certain middlewares,
 						implementing the client library pattern.`,
 			parser.NamedTypeValue{},
-			`// We construct a single ratelimiter middleware, to limit the total outgoing
-					// QPS from this client to all methods on the remote instance. We also
-					// construct per-endpoint circuitbreaker middlewares to demonstrate how
-					// that's done, although they could easily be combined into a single breaker
-					// for the entire remote instance, too.
-					limiter := ratelimit.NewErroringLimiter(rate.NewLimiter(rate.Every(time.Second), 100))
-				
-					// Zipkin GRPC Client Trace can either be instantiated per gRPC method with a
+			`// Zipkin GRPC Client Trace can either be instantiated per gRPC method with a
 					// provided operation name or a global tracing client can be instantiated
 					// without an operation name and fed to each Go kit client as ClientOption.
 					// In the latter case, the operation name will be the endpoint's grpc method
@@ -557,14 +547,9 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 						encodeGRPC%sRequest,
 						decodeGRPC%sResponse,
 						pb.%sReply{},
-						append(options, grpctransport.ClientBefore(opentracing.ContextToGRPC(otTracer, logger)))...,
+						append(options, grpctransport.ClientBefore(opentracing.ContextToGRPC(otTracer, logger), kitjwt.ContextToGRPC()))...,
 					).Endpoint()
 					%sEndpoint = opentracing.TraceClient(otTracer, "%s")(%sEndpoint)
-					%sEndpoint = limiter(%sEndpoint)
-					%sEndpoint = circuitbreaker.Gobreaker(gobreaker.NewCircuitBreaker(gobreaker.Settings{
-						Name:    "%s",
-						Timeout: 30 * time.Second,
-					}))(%sEndpoint)
 				}`,
 				v.Name,
 				fcname,
@@ -575,10 +560,6 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 				v.Name,
 				v.Name,
 				fcname, v.Name, fcname,
-				fcname, fcname,
-				fcname,
-				v.Name,
-				fcname,
 			)
 
 			handler.Methods[iface.ExposeMethodLength()*3+1].Body += "\n\n" + body
@@ -608,6 +589,8 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 						return status.Error(st.Code(), st.Message())
 					}
 					switch err {
+					case kitjwt.ErrTokenContextMissing:
+							return status.Error(codes.Unauthenticated, err.Error())
 					default:
 						return status.Error(codes.Internal, "internal server error")
 					}`,
