@@ -415,7 +415,12 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
         decodeHTTP%sRequest,
         httptransport.EncodeJSONResponse,
 		append(options, httptransport.ServerBefore(opentracing.HTTPToContext(otTracer, "%s", logger), kitjwt.HTTPToContext()))...,
-    ))`, utils.ToUpperFirstCamelCase(cc.Method), utils.ToLowerSnakeCase(m.Name), m.Name, m.Name, m.Name)
+    ))`, utils.ToUpperFirstCamelCase(cc.Method), func(router string) string {
+				if router == "" {
+					return utils.ToLowerSnakeCase(m.Name)
+				}
+				return router
+			}(cc.Router), m.Name, m.Name, m.Name)
 		}
 
 		handlerFile.Methods[1].Body += "\n" + `m.Get("/metrics", promhttp.Handler())

@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"go/format"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -23,6 +24,7 @@ type Method struct {
 type CustomField struct {
 	Method string
 	Expose bool
+	Router string
 }
 
 func NewMethod(name string, str NamedTypeValue, body string, parameters, results []NamedTypeValue) Method {
@@ -67,10 +69,10 @@ func (m *Method) String() string {
 	return string(dt)
 }
 
-var myExp = regexp.MustCompile(`(method=(?P<method>\w+))?,?(expose=(?P<expose>\w+))?`)
+var myExp = regexp.MustCompile(`(method=(?P<method>\w+))?,?(expose=(?P<expose>\w+))?,?(router=(?P<router>[a-zA-Z:/]+))?`)
 
 func (m *Method) GetCustomField() (c CustomField) {
-	c.Method = "POST"
+	c.Method = http.MethodPost
 	c.Expose = true
 	if m.Comment == "" {
 		return
@@ -93,6 +95,10 @@ func (m *Method) GetCustomField() (c CustomField) {
 
 	if result["method"] != "" {
 		c.Method = result["method"]
+	}
+
+	if result["router"] != "" {
+		c.Router = result["router"]
 	}
 	return
 }
