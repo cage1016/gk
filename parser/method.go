@@ -69,7 +69,7 @@ func (m *Method) String() string {
 	return string(dt)
 }
 
-var myExp = regexp.MustCompile(`(method=(?P<method>\w+))?,?(expose=(?P<expose>\w+))?,?(router=(?P<router>[a-zA-Z:/]+))?`)
+var myExp = regexp.MustCompile(`(method=(?P<method>\w+))?,?(expose=(?P<expose>\w+))?,?(router=(?P<router>[a-zA-Z:/_]+))?`)
 
 func (m *Method) GetCustomField() (c CustomField) {
 	c.Method = http.MethodPost

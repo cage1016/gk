@@ -9,6 +9,7 @@
 // tmpl/partials/constants.tmpl (126B)
 // tmpl/partials/endpoint_func.tmpl (778B)
 // tmpl/partials/endpoint_method_func.tmpl (450B)
+// tmpl/partials/endpoint_response.tmpl (228B)
 // tmpl/partials/func.tmpl (208B)
 // tmpl/partials/func_parameters.tmpl (80B)
 // tmpl/partials/func_results.tmpl (108B)
@@ -279,6 +280,26 @@ func tmplPartialsEndpoint_method_funcTmpl() (*asset, error) {
 
 	info := bindataFileInfo{name: "tmpl/partials/endpoint_method_func.tmpl", size: 450, mode: os.FileMode(0644), modTime: time.Unix(1563332658, 0)}
 	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0x81, 0x88, 0x83, 0x3b, 0xe, 0x5c, 0xae, 0x9f, 0xd3, 0x71, 0xe5, 0x8b, 0xe6, 0x4a, 0xfe, 0x57, 0x5, 0x4f, 0x99, 0x97, 0xa8, 0x9c, 0x53, 0xa, 0xd4, 0x5b, 0xac, 0x23, 0x5a, 0x6a, 0x5, 0x34}}
+	return a, nil
+}
+
+var _tmplPartialsEndpoint_responseTmpl = "\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\x64\x8d\xc1\x6a\xc3\x30\x0c\x86\x5f\x45\x04\x1f\x36\x08\x7e\x80\xc1\x6e\xdb\x75\x2b\xa1\xf4\x6e\xda\x3f\x45\x90\xd8\xa9\xe4\x18\x82\xf0\xbb\x97\xa4\x29\x14\xaa\xcb\x87\xf8\x3e\x24\xda\x47\x90\x67\x89\x24\xd0\x29\x45\x85\xfa\x9f\x90\x43\x07\x35\x85\x14\x3e\xc3\x9f\x20\xca\x29\x9a\x71\x4f\xb8\x91\x67\xfd\x8f\xc3\xf2\x2b\xd2\x41\x29\xcb\x8c\x5a\xcd\x30\xe8\x46\x09\xf1\x0a\x72\xdc\xba\x42\x5f\xdf\xe4\x7c\xb7\xdf\x5d\x25\xf7\x14\x41\xae\xf8\xe3\x32\x81\x1a\x88\x24\x69\x6a\x6d\xe9\xa1\x52\xa6\x0f\xd6\x83\xf0\xc8\x99\x0b\xd6\x48\x9f\xf5\x67\xad\xe2\xcd\x5c\xf1\x7f\x61\x7c\xf9\x28\x66\x88\x97\x6d\x7f\x47\xbd\x07\x00\x00\xff\xff\xaa\x18\x75\x6a\xe4\x00\x00\x00"
+
+func tmplPartialsEndpoint_responseTmplBytes() ([]byte, error) {
+	return bindataRead(
+		_tmplPartialsEndpoint_responseTmpl,
+		"tmpl/partials/endpoint_response.tmpl",
+	)
+}
+
+func tmplPartialsEndpoint_responseTmpl() (*asset, error) {
+	bytes, err := tmplPartialsEndpoint_responseTmplBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "tmpl/partials/endpoint_response.tmpl", size: 228, mode: os.FileMode(0644), modTime: time.Unix(1575446273, 0)}
+	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0xe7, 0xe4, 0x4a, 0x54, 0x83, 0x95, 0x22, 0x5c, 0xe3, 0xca, 0x84, 0x37, 0xeb, 0xa9, 0xb1, 0x8e, 0xd3, 0x3b, 0x42, 0xfa, 0xe5, 0xcf, 0xdb, 0xa4, 0xc3, 0x62, 0x27, 0x81, 0x4b, 0x6f, 0x56, 0xd6}}
 	return a, nil
 }
 
@@ -862,6 +883,7 @@ var _bindata = map[string]func() (*asset, error){
 	"tmpl/partials/constants.tmpl":                         tmplPartialsConstantsTmpl,
 	"tmpl/partials/endpoint_func.tmpl":                     tmplPartialsEndpoint_funcTmpl,
 	"tmpl/partials/endpoint_method_func.tmpl":              tmplPartialsEndpoint_method_funcTmpl,
+	"tmpl/partials/endpoint_response.tmpl":                 tmplPartialsEndpoint_responseTmpl,
 	"tmpl/partials/func.tmpl":                              tmplPartialsFuncTmpl,
 	"tmpl/partials/func_parameters.tmpl":                   tmplPartialsFunc_parametersTmpl,
 	"tmpl/partials/func_results.tmpl":                      tmplPartialsFunc_resultsTmpl,
@@ -940,6 +962,7 @@ var _bintree = &bintree{nil, map[string]*bintree{
 			"constants.tmpl":                         &bintree{tmplPartialsConstantsTmpl, map[string]*bintree{}},
 			"endpoint_func.tmpl":                     &bintree{tmplPartialsEndpoint_funcTmpl, map[string]*bintree{}},
 			"endpoint_method_func.tmpl":              &bintree{tmplPartialsEndpoint_method_funcTmpl, map[string]*bintree{}},
+			"endpoint_response.tmpl":                 &bintree{tmplPartialsEndpoint_responseTmpl, map[string]*bintree{}},
 			"func.tmpl":                              &bintree{tmplPartialsFuncTmpl, map[string]*bintree{}},
 			"func_parameters.tmpl":                   &bintree{tmplPartialsFunc_parametersTmpl, map[string]*bintree{}},
 			"func_results.tmpl":                      &bintree{tmplPartialsFunc_resultsTmpl, map[string]*bintree{}},

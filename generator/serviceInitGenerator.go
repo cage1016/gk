@@ -1309,6 +1309,12 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 			n := strings.ToUpper(string(p.Name[0])) + p.Name[1:]
 			resultPrams = append(resultPrams, parser.NewNameType(n, p.Type))
 		}
+		var isOnlyErrRes = false
+		if len(resultPrams) == 1 {
+			if resultPrams[0].Type == "error" {
+				isOnlyErrRes = true
+			}
+		}
 		res := parser.NewStructWithComment(
 			v.Name+"Response",
 			fmt.Sprintf(
@@ -1340,10 +1346,30 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 				parser.NewNameType("", "http.Header"),
 			},
 		))
+
+		tmplModel := map[string]interface{}{
+			"Calling":   v,
+			"Request":   reqPrams,
+			"Response":  resultPrams,
+			"isOnlyErrRes": isOnlyErrRes,
+		}
+		tRes, err := te.ExecuteString("{{template \"endpoint_response\" .}}", tmplModel)
+		if err != nil {
+			return err
+		}
+		f.Methods = append(f.Methods, parser.NewMethod(
+			"Response",
+			parser.NewNameType("r", v.Name+"Response"),
+			tRes+"\n",
+			[]parser.NamedTypeValue{},
+			[]parser.NamedTypeValue{
+				parser.NewNameType("", "interface{}"),
+			},
+		))
 	}
 
 	nm := iface.ExposeMethodLength()
-	var body = make([]string, 3+nm*3)
+	var body = make([]string, 3+nm*4)
 	tRes, err := te.ExecuteString("{{template \"vars\" .}}", f.Vars)
 	if err != nil {
 		return err
@@ -1357,9 +1383,10 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 	a, _ := format.Source([]byte(strings.TrimSpace(tRes)))
 	body[1] = string(a)
 	for i := 0; i < nm; i++ {
-		body[3*i+2] = f.Structs[i].String()
-		body[3*i+3] = f.Methods[i*2+0].String()
-		body[3*i+4] = f.Methods[i*2+1].String()
+		body[4*i+2] = f.Structs[i].String()
+		body[4*i+3] = f.Methods[i*3+0].String()
+		body[4*i+4] = f.Methods[i*3+1].String()
+		body[4*i+5] = f.Methods[i*3+2].String()
 	}
 
 	return defaultFs.WriteFile(eFile, strings.Join(body, "\n\n"), false)
