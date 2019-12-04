@@ -235,6 +235,7 @@ func (sg *ServiceInitGenerator) Generate(name string) error {
 	if err != nil {
 		return err
 	}
+	err = sg.generateVersion(path)
 	return nil
 }
 func (sg *ServiceInitGenerator) generateTransport(name string, iface *parser.Interface, transport string) error {
@@ -296,11 +297,18 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 	servicePath = strings.Replace(servicePath, "\\", "/", -1)
 	serviceImport := projectPath + "/" + servicePath
 
+	customErrorPath, err := te.ExecuteString(viper.GetString("custom_errors.path"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+	customErrorImport := projectPath + "/" + strings.Replace(customErrorPath, "\\", "/", -1)
+
 	handlerFile.Imports = []parser.NamedTypeValue{
 		parser.NewNameType("", "\"bytes\""),
 		parser.NewNameType("", "\"context\""),
 		parser.NewNameType("", "\"encoding/json\""),
-		parser.NewNameType("", "\"errors\""),
 		parser.NewNameType("", "\"io/ioutil\""),
 		parser.NewNameType("", "\"net/http\""),
 		parser.NewNameType("", "\"net/url\""),
@@ -324,6 +332,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 		parser.NewNameType("", ""),
 		parser.NewNameType("", "\""+endpointsImport+"\""),
 		parser.NewNameType("", "\""+serviceImport+"\""),
+		parser.NewNameType("", "\""+customErrorImport+"\""),
 	}
 
 	// JSONErrorDecoder
@@ -413,7 +422,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 			handlerFile.Methods[1].Body += "\n" + fmt.Sprintf(`m.%s("/%s", httptransport.NewServer(
         endpoints.%sEndpoint,
         decodeHTTP%sRequest,
-        httptransport.EncodeJSONResponse,
+        encodeJSONResponse,
 		append(options, httptransport.ServerBefore(opentracing.HTTPToContext(otTracer, "%s", logger), kitjwt.HTTPToContext()))...,
     ))`, utils.ToUpperFirstCamelCase(cc.Method), func(router string) string {
 				if router == "" {
@@ -580,38 +589,46 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 	handlerFile.Methods = append(handlerFile.Methods, parser.NewMethod(
 		"httpEncodeError",
 		parser.NamedTypeValue{},
-		`w.Header().Set("Content-Type", "application/json")
+		`code := http.StatusInternalServerError
+				var message string
+				var errs []errors.Errors
+				w.Header().Set("Content-Type", contentType)
+				if s, ok := status.FromError(err); !ok {
+					// HTTP
+					switch errorVal := err.(type) {
+					case errors.Error:
+						switch {
+						// TODO write your own custom error check here
+						}
 			
-				if lberr, ok := err.(lb.RetryError); ok {
-					st, _ := status.FromError(lberr.Final)
-					w.WriteHeader(HTTPStatusFromCode(st.Code()))
-					json.NewEncoder(w).Encode(errorWrapper{Error: st.Message()})
-				} else {
-					st, ok := status.FromError(err)
-					if ok {
-						w.WriteHeader(HTTPStatusFromCode(st.Code()))
-						json.NewEncoder(w).Encode(errorWrapper{Error: st.Message()})
-					} else {
+						if errorVal.Msg() != "" {
+							message, errs = errorVal.Msg(), errorVal.Errors()
+						}
+					default:
 						switch err {
-						case io.ErrUnexpectedEOF:
-							w.WriteHeader(http.StatusBadRequest)
-						case io.EOF:
-							w.WriteHeader(http.StatusBadRequest)
+						case io.ErrUnexpectedEOF, io.EOF:
+							code = http.StatusBadRequest
 						case kitjwt.ErrTokenContextMissing:
-							w.WriteHeader(http.StatusUnauthorized)
+							code = http.StatusUnauthorized
 						default:
 							switch err.(type) {
-							case *json.SyntaxError:
-								w.WriteHeader(http.StatusBadRequest)
-							case *json.UnmarshalTypeError:
-								w.WriteHeader(http.StatusBadRequest)
-							default:
-								w.WriteHeader(http.StatusInternalServerError)
+							case *json.SyntaxError, *json.UnmarshalTypeError:
+								code = http.StatusBadRequest
 							}
 						}
-						json.NewEncoder(w).Encode(errorWrapper{Error: err.Error()})
+
+						errs = errors.FromError(err.Error())
+						message = errs[0].Message
 					}
-				}`,
+				} else {
+					// GRPC
+					code = HTTPStatusFromCode(s.Code())
+					errs = errors.FromError(s.Message())
+					message = errs[0].Message
+				}
+			
+				w.WriteHeader(code)
+				json.NewEncoder(w).Encode(errorRes{errorResItem{code, message, errs}})`,
 		[]parser.NamedTypeValue{
 			parser.NewNameType("_", "context.Context"),
 			parser.NewNameType("err", "error"),
@@ -620,11 +637,68 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 		[]parser.NamedTypeValue{},
 	))
 
+	// encodeJSONResponse
+	handlerFile.Methods = append(handlerFile.Methods, parser.NewMethod(
+		"encodeJSONResponse",
+		parser.NamedTypeValue{},
+		`w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				if headerer, ok := response.(httptransport.Headerer); ok {
+					for k, values := range headerer.Headers() {
+						for _, v := range values {
+							w.Header().Add(k, v)
+						}
+					}
+				}
+				code := http.StatusOK
+				if sc, ok := response.(httptransport.StatusCoder); ok {
+					code = sc.StatusCode()
+				}
+				w.WriteHeader(code)
+				if code == http.StatusNoContent {
+					return nil
+				}
+			
+				if ar, ok := response.(responses.Responser); ok {
+					return json.NewEncoder(w).Encode(ar.Response())
+				}
+			
+				return json.NewEncoder(w).Encode(response)`,
+		[]parser.NamedTypeValue{
+			parser.NewNameType("_", "context.Context"),
+			parser.NewNameType("w", "http.ResponseWriter"),
+			parser.NewNameType("response", "interface{}"),
+		},
+		[]parser.NamedTypeValue{
+			parser.NewNameType("", "error"),
+		},
+	))
+
+	// contentType
+	handlerFile.Constants = append(handlerFile.Constants, parser.NewNameTypeValue("contentType", "string", `"application/json"`))
+
 	// errorWrapper
 	handlerFile.Structs = append(handlerFile.Structs, parser.NewStruct(
 		"errorWrapper",
 		[]parser.NamedTypeValue{
 			parser.NewNameType("Error", "string"),
+		},
+	))
+
+	// errorResItem
+	handlerFile.Structs = append(handlerFile.Structs, parser.NewStruct(
+		"errorResItem",
+		[]parser.NamedTypeValue{
+			parser.NewNameType("Code", "int"),
+			parser.NewNameType("Message", "string"),
+			parser.NewNameType("Errors", "[]errors.Errors"),
+		},
+	))
+
+	// errorRes
+	handlerFile.Structs = append(handlerFile.Structs, parser.NewStruct(
+		"errorRes",
+		[]parser.NamedTypeValue{
+			parser.NewNameType("Error", "errorResItem"),
 		},
 	))
 
@@ -664,20 +738,20 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 		}
 	}
 
-	// errors
-	errorsstr, err := te.Execute("errors.go", nil)
+	// http_util.go
+	httpUtil, err := te.Execute("http_util.go", nil)
 	if err != nil {
 		return err
 	}
-	errorsfile := path + defaultFs.FilePathSeparator() + "errors.go"
-	b, err = defaultFs.Exists(errorsfile)
+	httpUtilfile := path + defaultFs.FilePathSeparator() + "http_util.go"
+	b, err = defaultFs.Exists(httpUtilfile)
 	if err != nil {
 		return err
 	}
 	if b {
-		logrus.Info("errors.go already exists, skip re-generate")
+		logrus.Info("http_util.go already exists, skip re-generate")
 	}
-	err = defaultFs.WriteFile(errorsfile, errorsstr, true)
+	err = defaultFs.WriteFile(httpUtilfile, httpUtil, true)
 	if err != nil {
 		return err
 	}
@@ -1348,9 +1422,9 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 		))
 
 		tmplModel := map[string]interface{}{
-			"Calling":   v,
-			"Request":   reqPrams,
-			"Response":  resultPrams,
+			"Calling":      v,
+			"Request":      reqPrams,
+			"Response":     resultPrams,
 			"isOnlyErrRes": isOnlyErrRes,
 		}
 		tRes, err := te.ExecuteString("{{template \"endpoint_response\" .}}", tmplModel)
@@ -1375,11 +1449,47 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 		return err
 	}
 
-	body[0] = "package endpoints" + "\n\n" + `import (
+	// custom responses import
+	var customResponseImport string
+	{
+		projectPath, err := utils.GetProjectPath()
+		if err != nil {
+			return err
+		}
+
+		customErrorPath, err := te.ExecuteString(viper.GetString("custom_responses.path"), map[string]string{
+			"ServiceName": name,
+		})
+		if err != nil {
+			return err
+		}
+		customResponseImport = projectPath + "/" + strings.Replace(customErrorPath, "\\", "/", -1)
+	}
+
+	var serviceImport string
+	{
+		projectPath, err := utils.GetProjectPath()
+		if err != nil {
+			return err
+		}
+
+		servicePath, err := te.ExecuteString(viper.GetString("service.path"), map[string]string{
+			"ServiceName": name,
+		})
+		if err != nil {
+			return err
+		}
+		serviceImport = projectPath + "/" + strings.Replace(servicePath, "\\", "/", -1)
+	}
+
+	body[0] = "package endpoints" + "\n\n" + fmt.Sprintf(`import (
 	"net/http"
 	
 	httptransport "github.com/go-kit/kit/transport/http"
-)`
+	
+	"%s"
+	"%s"
+)`, customResponseImport, serviceImport)
 	a, _ := format.Source([]byte(strings.TrimSpace(tRes)))
 	body[1] = string(a)
 	for i := 0; i < nm; i++ {
@@ -1560,7 +1670,17 @@ func (mg *ServiceInitGenerator) generateServiceLoggingMiddleware(name, path stri
 	}
 	return nil
 }
+func (mg *ServiceInitGenerator) generateVersion(path string) error {
+	logrus.Info("Generating service version...")
+	defaultFs := fs.Get()
 
+	body := []string{`package service
+
+const Version = "1.0"`}
+
+	lfile := path + defaultFs.FilePathSeparator() + "version.go"
+	return defaultFs.WriteFile(lfile, strings.Join(body, "\n\n"), false)
+}
 func NewServiceInitGenerator() *ServiceInitGenerator {
 	return &ServiceInitGenerator{}
 }

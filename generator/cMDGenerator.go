@@ -188,20 +188,13 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 	// constants
 	{
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("defZipkinV2URL", "string", `""`))
-
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("defNameSpace", "string", "\"gokitconsulk8s\""))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("defServiceName", "string", fmt.Sprintf(`"%s"`, name)))
-
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("defLogLevel", "string", `"error"`))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("defServiceHost", "string", `"localhost"`))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("defHTTPPort", "string", `"8180"`))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("defGRPCPort", "string", `"8181"`))
-
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("envZipkinV2URL", "string", `"QS_ZIPKIN_V2_URL"`))
-
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("envNameSpace", "string", fmt.Sprintf(`"QS_%s_NAMESPACE"`, strings.ToUpper(name))))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("envServiceName", "string", fmt.Sprintf(`"QS_%s_SERVICE_NAME"`, strings.ToUpper(name))))
-
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("envLogLevel", "string", fmt.Sprintf(`"QS_%s_LOG_LEVEL"`, strings.ToUpper(name))))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("envServiceHost", "string", fmt.Sprintf(`"QS_%s_SERVICE_HOST"`, strings.ToUpper(name))))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("envHTTPPort", "string", fmt.Sprintf(`"QS_%s_HTTP_PORT"`, strings.ToUpper(name))))
@@ -212,7 +205,6 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 	configStrct := parser.NewStruct("config", []parser.NamedTypeValue{})
 	configStrct.Name = "config"
 	vars := []parser.NamedTypeValue{
-		parser.NewNameType("nameSpace", "string"),
 		parser.NewNameType("serviceName", "string"),
 		parser.NewNameType("logLevel", "string"),
 		parser.NewNameType("serviceHost", "string"),
@@ -285,8 +277,7 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 	loadConfigFunc := parser.NewMethod(
 		"loadConfig",
 		parser.NamedTypeValue{},
-		`cfg.nameSpace = env(envNameSpace, defNameSpace)
-				cfg.serviceName = env(envServiceName, defServiceName)
+		`cfg.serviceName = env(envServiceName, defServiceName)
 				cfg.logLevel = env(envLogLevel, defLogLevel)
 				cfg.serviceHost = env(envServiceHost, defServiceHost)
 				cfg.httpPort = env(envHTTPPort, defHTTPPort)
@@ -392,7 +383,7 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 			}
 
 			var server *grpc.Server
-			level.Info(logger).Log("protocol", "GRPC", "protocol", "GRPC", "exposed", port)
+			level.Info(logger).Log("protocol", "GRPC", "exposed", port)
 			server = grpc.NewServer(grpc.UnaryInterceptor(kitgrpc.Interceptor))	
 			pb.Register%sServer(server, transports.MakeGRPCServer(endpoints, tracer, zipkinTracer, logger))
 			healthgrpc.RegisterHealthServer(server, hs)

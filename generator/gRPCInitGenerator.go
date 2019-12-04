@@ -160,19 +160,30 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 	servicePath = strings.Replace(servicePath, "\\", "/", -1)
 	serviceImport := projectPath + "/" + servicePath
 
+	customErrorPath, err := te.ExecuteString(viper.GetString("custom_errors.path"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+	customErrorImport := projectPath + "/" + strings.Replace(customErrorPath, "\\", "/", -1)
+
 	handler := parser.NewFile()
 	handler.Package = "transports"
 	handler.Imports = []parser.NamedTypeValue{
 		parser.NewNameType("", "\"context\""),
-		parser.NewNameType("", "\"errors\""),
 		parser.NewNameType("kitjwt", "\"github.com/go-kit/kit/auth/jwt\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/endpoint\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/log\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/tracing/opentracing\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/tracing/zipkin\""),
+		parser.NewNameType("", "\"google.golang.org/grpc/codes\""),
+		parser.NewNameType("", "\"google.golang.org/grpc/status\""),
+		parser.NewNameType("", "\"google.golang.org/grpc\""),
 		parser.NewNameType("grpctransport", "\"github.com/go-kit/kit/transport/grpc\""),
 		parser.NewNameType("stdopentracing", "\"github.com/opentracing/opentracing-go\""),
 		parser.NewNameType("stdzipkin", "\"github.com/openzipkin/zipkin-go\""),
+		parser.NewNameType("", fmt.Sprintf("\"%s\"", customErrorImport)),
 		parser.NewNameType("", fmt.Sprintf("\"%s\"", pbImport)),
 		parser.NewNameType("", fmt.Sprintf("\"%s\"", endpointsImport)),
 		parser.NewNameType("", fmt.Sprintf("\"%s\"", serviceImport)),
@@ -197,7 +208,7 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 			fmt.Sprintf(
 				`_, rp, err := s.%s.ServeGRPC(ctx, req)
 					if err != nil {
-						return nil, grpcEncodeError(err)
+						return nil, grpcEncodeError(errors.Cast(err))
 					}
 					rep = rp.(*pb.%sReply)
 					return rep, nil`,
@@ -588,14 +599,16 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 					if ok {
 						return status.Error(st.Code(), st.Message())
 					}
-					switch err {
-					case kitjwt.ErrTokenContextMissing:
+				
+					switch {
+				    // TODO write your own custom error check here
+					case errors.Contains(err, kitjwt.ErrTokenContextMissing):
 							return status.Error(codes.Unauthenticated, err.Error())
 					default:
 						return status.Error(codes.Internal, "internal server error")
 					}`,
 			[]parser.NamedTypeValue{
-				parser.NewNameType("err", "error"),
+				parser.NewNameType("err", "errors.Error"),
 			},
 			[]parser.NamedTypeValue{
 				parser.NewNameType("", "error"),

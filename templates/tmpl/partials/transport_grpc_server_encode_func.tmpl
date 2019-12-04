@@ -1,3 +1,3 @@
 
         reply := grpcReply.({{.Request.Name}})
-        return {{.Response.Name}}{ {{range $i,$v := $.Request.Vars}}{{if ne $v.Name "Err"}}{{toUpperFirst $v.Name}}:reply.{{$v.Name}}{{end}}{{if not (last $i $.Request.Vars)}},{{end}}{{end}} }, grpcEncodeError(reply.Err)
+        return {{.Response.Name}}{ {{range $i,$v := $.Request.Vars}}{{if ne $v.Name "Err"}}{{toUpperFirst $v.Name}}:reply.{{$v.Name}}{{end}}{{if not (last $i $.Request.Vars)}},{{end}}{{end}} }, grpcEncodeError(errors.Cast(reply.Err))

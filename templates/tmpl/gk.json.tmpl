@@ -35,5 +35,13 @@
         "file_name": "consul_resolver.go"
     }
   },
+  "custom_errors": {
+    "path": "pkg{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}{{fileSeparator}}errors",
+    "file_name": "errors.go"
+  },
+  "custom_responses": {
+    "path": "pkg{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}{{fileSeparator}}responses",
+    "file_name": "responses.go"
+  },
   "default_transport":"http"
 }

@@ -64,3 +64,22 @@ func defaultGOPATH() string {
 	}
 	return ""
 }
+
+func GetProjectPath() (string, error) {
+	goModPackage := GetModPackage()
+	if goModPackage == "" {
+		gosrc := GetGOPATH() + "/src/"
+		gosrc = strings.Replace(gosrc, "\\", "/", -1)
+		pwd, err := os.Getwd()
+		if err != nil {
+			return "", err
+		}
+		if viper.GetString("gk_folder") != "" {
+			pwd += "/" + viper.GetString("gk_folder")
+		}
+		pwd = strings.Replace(pwd, "\\", "/", -1)
+		return strings.Replace(pwd, gosrc, "", 1), nil
+	} else {
+		return goModPackage, nil
+	}
+}

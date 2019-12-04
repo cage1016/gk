@@ -1,1 +1,1 @@
-        return responses.DataRes{service.Version{{if eq .isOnlyErrRes true}}{{else}}{{range $i,$v := $.Response}}{{if ne $v.Type "error"}}, {{if not (isPrimitiveTypes $v.Type)}}r.{{$v.Name}}{{else}}r{{end}}{{end}}{{end}}{{end}}}
+        return responses.DataRes{ApiVersion: service.Version{{if eq .isOnlyErrRes true}}{{else}}{{range $i,$v := $.Response}}{{if ne $v.Type "error"}}, {{if not (isPrimitiveTypes $v.Type)}}Data: r.{{$v.Name}}{{else}}Data: r{{end}}{{end}}{{end}}{{end}}}
