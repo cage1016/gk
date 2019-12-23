@@ -2,9 +2,9 @@ package generator
 
 import (
 	"fmt"
-
 	"github.com/kujtimiihoxha/gk/fs"
 	"github.com/kujtimiihoxha/gk/parser"
+	"github.com/kujtimiihoxha/gk/utils"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 
@@ -21,6 +21,12 @@ func (sg *ServiceGenerator) Generate(name string) error {
 	f.Package = "service"
 	te := template.NewEngine()
 	defaultFs := fs.Get()
+
+	pp, err := utils.GetProjectPath()
+	if err != nil {
+		logrus.Debug("get project path fail, exit")
+		return err
+	}
 
 	// new service
 	{
@@ -87,7 +93,7 @@ func (sg *ServiceGenerator) Generate(name string) error {
 		}
 	}
 
-	// custom response
+	// custom response/error
 	{
 		logrus.Info("Custom Responses Generating...")
 
@@ -95,24 +101,26 @@ func (sg *ServiceGenerator) Generate(name string) error {
 		if err != nil {
 			return err
 		}
-		crname, err := te.ExecuteString(viper.GetString("custom_responses.file_name"), map[string]string{"ServiceName": name})
+
+		// responses.go
+		crrname, err := te.ExecuteString(viper.GetString("custom_responses.responses_file_name"), map[string]string{"ServiceName": name})
 		if err != nil {
 			return err
 		}
 
 		err = defaultFs.MkdirAll(crpath)
-		logrus.Debug(fmt.Sprintf("Creating %s in %s", crname, crpath))
+		logrus.Debug(fmt.Sprintf("Creating %s in %s", crrname, crpath))
 		if err != nil {
 			return err
 		}
 
-		crStr, err := te.Execute("custom_responses.go", nil)
+		crrStr, err := te.Execute("custom_responses.go", nil)
 		if err != nil {
 			return err
 		}
 
-		crfile := crpath + defaultFs.FilePathSeparator() + crname
-		b, err := defaultFs.Exists(crfile)
+		crrfile := crpath + defaultFs.FilePathSeparator() + crrname
+		b, err := defaultFs.Exists(crrfile)
 		if err != nil {
 			return err
 		}
@@ -120,7 +128,37 @@ func (sg *ServiceGenerator) Generate(name string) error {
 			logrus.Info("custom response exists, skip re-generate")
 		}
 
-		err = defaultFs.WriteFile(crfile, crStr, true)
+		err = defaultFs.WriteFile(crrfile, crrStr, true)
+		if err != nil {
+			return err
+		}
+
+		// errors.go
+		crename, err := te.ExecuteString(viper.GetString("custom_responses.errors_file_name"), map[string]string{"ServiceName": name})
+		if err != nil {
+			return err
+		}
+
+		cepath, err := te.ExecuteString(viper.GetString("custom_errors.path"), map[string]string{"ServiceName": name})
+		if err != nil {
+			return err
+		}
+
+		creStr, err := te.Execute("custom_responses_error.go",  map[string]string{"ErrorsPackage": pp + defaultFs.FilePathSeparator() + cepath})
+		if err != nil {
+			return err
+		}
+
+		crefile := crpath + defaultFs.FilePathSeparator() + crename
+		b, err = defaultFs.Exists(crefile)
+		if err != nil {
+			return err
+		}
+		if b {
+			logrus.Info("custom response(error) exists, skip re-generate")
+		}
+
+		err = defaultFs.WriteFile(crefile, creStr, true)
 		if err != nil {
 			return err
 		}

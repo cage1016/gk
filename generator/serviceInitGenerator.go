@@ -1676,7 +1676,14 @@ func (mg *ServiceInitGenerator) generateVersion(path string) error {
 
 	body := []string{`package service
 
-const Version = "1.0"`}
+var (
+	// Version will be assigned with go build
+	Version = ""
+	// CommitHash will be assigned with go build
+	CommitHash = ""
+	// BuildTimeStamp will be assigned with go build
+	BuildTimeStamp = ""
+)`}
 
 	lfile := path + defaultFs.FilePathSeparator() + "version.go"
 	return defaultFs.WriteFile(lfile, strings.Join(body, "\n\n"), false)
