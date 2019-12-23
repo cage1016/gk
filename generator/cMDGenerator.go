@@ -248,26 +248,32 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 		}
 		cfg := loadConfig(logger)
 		logger = log.With(logger, "service", cfg.serviceName)
+		level.Info(logger).Log("version", service.Version, "commitHash", service.CommitHash, "buildTimeStamp", service.BuildTimeStamp)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
 		tracer := initOpentracing()
 		zipkinTracer := initZipkin(cfg.serviceName, cfg.httpPort, cfg.zipkinV2URL, logger)
 		service := NewServer(logger)
 		endpoints := endpoints.New(service, logger, tracer, zipkinTracer)
-		
-		errs := make(chan error, 2)
+
 		hs := health.NewServer()
 		hs.SetServingStatus(cfg.serviceName, healthgrpc.HealthCheckResponse_SERVING)
-		go startHTTPServer(endpoints, tracer, zipkinTracer, cfg.httpPort, logger, errs)
-		go startGRPCServer(endpoints, tracer, zipkinTracer, cfg.grpcPort, hs, logger, errs)
+
+		wg := &sync.WaitGroup{}
+
+		go startHTTPServer(ctx, wg, endpoints, tracer, zipkinTracer, cfg.httpPort, logger)
+		go startGRPCServer(ctx, wg, endpoints, tracer, zipkinTracer, cfg.grpcPort, hs, logger)
 	
-		go func() {
-			c := make(chan os.Signal)
-			signal.Notify(c, syscall.SIGINT)
-			errs <- fmt.Errorf("%s", <-c)
-		}()
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt)
+		<-c
 	
-		err := <-errs	
-		level.Info(logger).Log("serviceName", cfg.serviceName, "terminated", err)`,
+		cancel()
+		wg.Wait()
+	
+		fmt.Println("main: all goroutines have told us they've finished")`,
 		[]parser.NamedTypeValue{},
 		[]parser.NamedTypeValue{},
 	)
@@ -359,49 +365,94 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 	startHTTPServerFunc := parser.NewMethod(
 		"startHTTPServer",
 		parser.NamedTypeValue{},
-		`p := fmt.Sprintf(":%s", port)
+		`wg.Add(1)
+				defer wg.Done()
+			
+				if port == "" {
+					level.Error(logger).Log("protocol", "HTTP", "exposed", port, "err", "port is not assigned exist")
+					return
+				}
+			
+				p := fmt.Sprintf(":%s", port)
+				// create a server
+				srv := &http.Server{Addr: p, Handler: transports.NewHTTPHandler(endpoints, tracer, zipkinTracer, logger)}
 				level.Info(logger).Log("protocol", "HTTP", "exposed", port)
-				errs <- http.ListenAndServe(p, transports.NewHTTPHandler(endpoints, tracer, zipkinTracer, logger))`,
+				go func() {
+					// service connections
+					if err := srv.ListenAndServe(); err != nil {
+						level.Info(logger).Log("Listen", err)
+					}
+				}()
+			
+				<-ctx.Done()
+			
+				// shut down gracefully, but wait no longer than 5 seconds before halting
+				shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+			
+				// ignore error since it will be "Err shutting down server : context canceled"
+				srv.Shutdown(shutdownCtx)
+			
+				level.Info(logger).Log("protocol", "HTTP", "Shutdown", "http server gracefully stopped")`,
 		[]parser.NamedTypeValue{
+			parser.NewNameType("ctx", "context.Context"),
+			parser.NewNameType("wg", "*sync.WaitGroup"),
 			parser.NewNameType("endpoints", "endpoints.Endpoints"),
 			parser.NewNameType("tracer", "stdopentracing.Tracer"),
 			parser.NewNameType("zipkinTracer", "*zipkin.Tracer"),
 			parser.NewNameType("port", "string"),
 			parser.NewNameType("logger", "log.Logger"),
-			parser.NewNameType("errs", "chan error"),
 		},
 		[]parser.NamedTypeValue{},
 	)
 	f.Methods = append(f.Methods, startHTTPServerFunc)
 
 	// startGRPCServer
-	body = fmt.Sprintf(`p := fmt.Sprintf(":%%s", port)
-			listener, err := net.Listen("tcp", p)
-			if err != nil {
-				level.Error(logger).Log("protocol", "GRPC", "listen", port, "err", err)
-				os.Exit(1)
-			}
-
-			var server *grpc.Server
-			level.Info(logger).Log("protocol", "GRPC", "exposed", port)
-			server = grpc.NewServer(grpc.UnaryInterceptor(kitgrpc.Interceptor))	
-			pb.Register%sServer(server, transports.MakeGRPCServer(endpoints, tracer, zipkinTracer, logger))
-			healthgrpc.RegisterHealthServer(server, hs)
-			reflection.Register(server)
-			errs <- server.Serve(listener)`, utils.ToUpperFirstCamelCase(name))
+	body = fmt.Sprintf(`wg.Add(1)
+								defer wg.Done()
+							
+								p := fmt.Sprintf(":%%s", port)
+								listener, err := net.Listen("tcp", p)
+								if err != nil {
+									level.Error(logger).Log("protocol", "GRPC", "listen", port, "err", err)
+									os.Exit(1)
+								}
+							
+								var server *grpc.Server
+								level.Info(logger).Log("protocol", "GRPC", "exposed", port)
+								server = grpc.NewServer(grpc.UnaryInterceptor(kitgrpc.Interceptor))
+								pb.Register%sServer(server, transports.MakeGRPCServer(endpoints, tracer, zipkinTracer, logger))
+								healthgrpc.RegisterHealthServer(server, hs)
+								reflection.Register(server)
+							
+								go func() {
+									// service connections
+									err = server.Serve(listener)
+									if err != nil {
+										fmt.Printf("grpc serve : %%s\n", err)
+									}
+								}()
+							
+								<-ctx.Done()
+							
+								// ignore error since it will be "Err shutting down server : context canceled"
+								server.GracefulStop()
+							
+								fmt.Println("grpc server gracefully stopped")`, utils.ToUpperFirstCamelCase(name))
 
 	startGRPCServerFunc := parser.NewMethod(
 		"startGRPCServer",
 		parser.NamedTypeValue{},
 		body,
 		[]parser.NamedTypeValue{
+			parser.NewNameType("ctx", "context.Context"),
+			parser.NewNameType("wg", "*sync.WaitGroup"),
 			parser.NewNameType("endpoints", "endpoints.Endpoints"),
 			parser.NewNameType("tracer", "stdopentracing.Tracer"),
 			parser.NewNameType("zipkinTracer", "*zipkin.Tracer"),
 			parser.NewNameType("port", "string"),
 			parser.NewNameType("hs", "*health.Server"),
 			parser.NewNameType("logger", "log.Logger"),
-			parser.NewNameType("errs", "chan error"),
 		},
 		[]parser.NamedTypeValue{},
 	)
