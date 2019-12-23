@@ -192,11 +192,6 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 	grpcStruct := parser.NewStruct("grpcServer", []parser.NamedTypeValue{})
 
 	for _, v := range iface.Methods {
-		cc := v.GetCustomField()
-		if cc.Expose == false {
-			continue
-		}
-
 		grpcStruct.Vars = append(grpcStruct.Vars, parser.NewNameType(
 			utils.ToLowerFirstCamelCase(v.Name),
 			"grpctransport.Handler",
@@ -210,7 +205,7 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 					if err != nil {
 						return nil, grpcEncodeError(errors.Cast(err))
 					}
-					rep = rp.(*pb.%sReply)
+					rep = rp.(*pb.%sResponse)
 					return rep, nil`,
 				utils.ToLowerFirstCamelCase(v.Name),
 				v.Name,
@@ -220,7 +215,7 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 				parser.NewNameType("req", fmt.Sprintf("*pb.%sRequest", v.Name)),
 			},
 			[]parser.NamedTypeValue{
-				parser.NewNameType("rep", fmt.Sprintf("*pb.%sReply", v.Name)),
+				parser.NewNameType("rep", fmt.Sprintf("*pb.%sResponse", v.Name)),
 				parser.NewNameType("err", "error"),
 			},
 		))
@@ -261,14 +256,7 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 		)
 		handler.Methods = append(handler.Methods, m)
 
-		//fmt.Println(handler.String())
-
 		for _, v := range iface.Methods {
-			cc := v.GetCustomField()
-			if cc.Expose == false {
-				continue
-			}
-
 			// DecodeGRPC Request
 			{
 				reqPrams := []parser.NamedTypeValue{}
@@ -345,9 +333,9 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 					resultPrams,
 				)
 				res := parser.NewStructWithComment(
-					fmt.Sprintf("&pb.%sReply", v.Name),
+					fmt.Sprintf("&pb.%sResponse", v.Name),
 					fmt.Sprintf(
-						"&pb.%sReply collects the request parameters for the %s method.",
+						"&pb.%sResponse collects the request parameters for the %s method.",
 						v.Name, v.Name,
 					),
 					reqPrams,
@@ -390,9 +378,9 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 						),
 						`, utils.ToLowerFirstCamelCase(v.Name), v.Name, v.Name, v.Name, v.Name)
 
-			handler.Methods[iface.ExposeMethodLength()].Body += "\n" + body
+			handler.Methods[len(iface.Methods)].Body += "\n" + body
 		}
-		handler.Methods[iface.ExposeMethodLength()].Body += `}`
+		handler.Methods[len(iface.Methods)].Body += `}`
 	}
 
 	// NewGRPCClient
@@ -429,11 +417,6 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 		))
 
 		for _, v := range iface.Methods {
-			cc := v.GetCustomField()
-			if cc.Expose == false{
-				continue
-			}
-
 			// encodeGRPC Request
 			{
 				reqPrams := []parser.NamedTypeValue{}
@@ -502,9 +485,9 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 					}
 				}
 				req := parser.NewStructWithComment(
-					fmt.Sprintf("*pb.%sReply", v.Name),
+					fmt.Sprintf("*pb.%sResponse", v.Name),
 					fmt.Sprintf(
-						"*pb.%sReply collects the request parameters for the %s method.",
+						"*pb.%sResponse collects the request parameters for the %s method.",
 						v.Name, v.Name,
 					),
 					reqPrams,
@@ -557,7 +540,7 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 						"%s",
 						encodeGRPC%sRequest,
 						decodeGRPC%sResponse,
-						pb.%sReply{},
+						pb.%sResponse{},
 						append(options, grpctransport.ClientBefore(opentracing.ContextToGRPC(otTracer, logger), kitjwt.ContextToGRPC()))...,
 					).Endpoint()
 					%sEndpoint = opentracing.TraceClient(otTracer, "%s")(%sEndpoint)
@@ -573,17 +556,17 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 				fcname, v.Name, fcname,
 			)
 
-			handler.Methods[iface.ExposeMethodLength()*3+1].Body += "\n\n" + body
+			handler.Methods[len(iface.Methods)*3+1].Body += "\n\n" + body
 		}
 
-		l := iface.ExposeMethodLength() + 2
+		l := len(iface.Methods) + 2
 		body := make([]string, l)
 		body[0] = "return endpoints.Endpoints{"
 		for i, v := range iface.Methods {
 			body[i+1] = fmt.Sprintf(`%sEndpoint: %sEndpoint,`, v.Name, utils.ToLowerFirstCamelCase(v.Name))
 		}
 		body[l-1] = "}"
-		handler.Methods[iface.ExposeMethodLength()*3+1].Body += "\n\n" + strings.Join(body, "\n")
+		handler.Methods[len(iface.Methods)*3+1].Body += "\n\n" + strings.Join(body, "\n")
 	}
 
 	// annoying helper functions

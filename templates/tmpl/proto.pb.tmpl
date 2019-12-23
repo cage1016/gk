@@ -4,16 +4,14 @@ package pb;
 
 // The {{.Name}} service definition.
 service {{.Name}} {
-    {{range $i,$v := .Methods}}
-    rpc {{$v.Name}} ({{$v.Name}}Request) returns ({{$v.Name}}Reply) {
-    }{{if not (last $i $.Methods)}}{{printf "\n"}}{{end}}{{end}}
+{{range $i,$v := .Methods}}  rpc {{$v.Name}}({{$v.Name}}Request) returns ({{$v.Name}}Response);{{if not (last $i $.Methods)}}{{printf "\n"}}{{end}}{{end}}
 }
 {{range $i,$v := .Methods}}
 message {{$v.Name}}Request {
-{{range $k,$kv := $v.Parameters}}    {{$kv.Type}} {{$kv.Name}} = {{$kv.Value}};{{if not (last $k $v.Parameters)}}{{printf "\n"}}{{end}}{{end}}
+{{range $k,$kv := $v.Parameters}}  {{$kv.Type}} {{$kv.Name}} = {{$kv.Value}};{{if not (last $k $v.Parameters)}}{{printf "\n"}}{{end}}{{end}}
 }
 
-message {{$v.Name}}Reply {
-{{range $k,$kv := $v.Results}}    {{$kv.Type}} {{$kv.Name}} = {{$kv.Value}};{{if not (last $k $v.Results)}}{{printf "\n"}}{{end}}{{end}}
+message {{$v.Name}}Response {
+{{range $k,$kv := $v.Results}}  {{$kv.Type}} {{$kv.Name}} = {{$kv.Value}};{{if not (last $k $v.Results)}}{{printf "\n"}}{{end}}{{end}}
 }
 {{end}}

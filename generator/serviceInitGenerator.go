@@ -305,6 +305,15 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 	}
 	customErrorImport := projectPath + "/" + strings.Replace(customErrorPath, "\\", "/", -1)
 
+	customResponsesPath, err := te.ExecuteString(viper.GetString("custom_responses.path"), map[string]string{
+		"ServiceName": name,
+	})
+	if err != nil {
+		return err
+	}
+	customResponsesImport := projectPath + "/" + strings.Replace(customResponsesPath, "\\", "/", -1)
+
+
 	handlerFile.Imports = []parser.NamedTypeValue{
 		parser.NewNameType("", "\"bytes\""),
 		parser.NewNameType("", "\"context\""),
@@ -331,6 +340,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 		parser.NewNameType("", "\"golang.org/x/time/rate\""),
 		parser.NewNameType("", ""),
 		parser.NewNameType("", "\""+endpointsImport+"\""),
+		parser.NewNameType("", "\""+customResponsesImport+"\""),
 		parser.NewNameType("", "\""+serviceImport+"\""),
 		parser.NewNameType("", "\""+customErrorImport+"\""),
 	}
@@ -343,7 +353,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 				if !strings.Contains(contentType, "application/json") {
 					return fmt.Errorf("expected JSON formatted error, got Content-Type %s", contentType)
 				}
-				var w errorWrapper
+				var w responses.ErrorWrapper
 				if err := json.NewDecoder(r.Body).Decode(&w); err != nil {
 					return err
 				}
@@ -628,7 +638,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 				}
 			
 				w.WriteHeader(code)
-				json.NewEncoder(w).Encode(errorRes{errorResItem{code, message, errs}})`,
+				json.NewEncoder(w).Encode(responses.ErrorRes{responses.ErrorResItem{code, message, errs}})`,
 		[]parser.NamedTypeValue{
 			parser.NewNameType("_", "context.Context"),
 			parser.NewNameType("err", "error"),
@@ -675,32 +685,6 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 
 	// contentType
 	handlerFile.Constants = append(handlerFile.Constants, parser.NewNameTypeValue("contentType", "string", `"application/json"`))
-
-	// errorWrapper
-	handlerFile.Structs = append(handlerFile.Structs, parser.NewStruct(
-		"errorWrapper",
-		[]parser.NamedTypeValue{
-			parser.NewNameType("Error", "string"),
-		},
-	))
-
-	// errorResItem
-	handlerFile.Structs = append(handlerFile.Structs, parser.NewStruct(
-		"errorResItem",
-		[]parser.NamedTypeValue{
-			parser.NewNameType("Code", "int"),
-			parser.NewNameType("Message", "string"),
-			parser.NewNameType("Errors", "[]errors.Errors"),
-		},
-	))
-
-	// errorRes
-	handlerFile.Structs = append(handlerFile.Structs, parser.NewStruct(
-		"errorRes",
-		[]parser.NamedTypeValue{
-			parser.NewNameType("Error", "errorResItem"),
-		},
-	))
 
 	path, err := te.ExecuteString(viper.GetString("transports.path"), map[string]string{
 		"ServiceName":   name,
@@ -811,11 +795,6 @@ func (sg *ServiceInitGenerator) generateGRPCTransport(name string, iface *parser
 	}
 	pbModel := ProtobufModel{Name: utils.ToUpperFirstCamelCase(name)}
 	for _, v := range iface.Methods {
-		cc := v.GetCustomField()
-		if cc.Expose == false {
-			continue
-		}
-
 		m := parser.Method{Name: v.Name}
 		for k, kv := range v.Parameters {
 			if kv.Type == "context.Context" {
@@ -825,7 +804,7 @@ func (sg *ServiceInitGenerator) generateGRPCTransport(name string, iface *parser
 			}
 			//利用 Method.Value 来传递 protobuf index，下标从 1 开始，由于 ctx 参数不用，则跨过 0 下标
 			kv.Value = fmt.Sprintf("%v", k)
-			kv.Name = utils.ToLowerFirstCamelCase(kv.Name)
+			kv.Name = utils.ToLowerSnakeCase(kv.Name)
 			m.Parameters = append(m.Parameters, kv)
 		}
 		for k, kv := range v.Results {
@@ -836,7 +815,7 @@ func (sg *ServiceInitGenerator) generateGRPCTransport(name string, iface *parser
 			}
 			//利用 Method.Value 来传递 protobuf index，下标从 1 开始
 			kv.Value = fmt.Sprintf("%v", k+1)
-			kv.Name = utils.ToLowerFirstCamelCase(kv.Name)
+			kv.Name = utils.ToLowerSnakeCase(kv.Name)
 			m.Results = append(m.Results, kv)
 		}
 		pbModel.Methods = append(pbModel.Methods, m)
@@ -1100,7 +1079,7 @@ func (sg *ServiceInitGenerator) generateEndpoints(name string, iface *parser.Int
 	}
 
 	for _, v := range iface.Methods {
-		cc := v.GetCustomField()
+		f.Structs[0].Vars = append(f.Structs[0].Vars, parser.NewNameType(v.Name+"Endpoint", "endpoint.Endpoint"))
 
 		reqPrams := []parser.NamedTypeValue{}
 		for _, p := range v.Parameters {
@@ -1140,20 +1119,6 @@ func (sg *ServiceInitGenerator) generateEndpoints(name string, iface *parser.Int
 		if err != nil {
 			return err
 		}
-
-		if cc.Expose == false {
-			f.Methods = append(f.Methods, parser.NewMethodWithComment(
-				v.Name,
-				fmt.Sprintf(`endpoint implement %s interface
-							but do nothing with expose=false`, iface.Name),
-				parser.NewNameType("e", "Endpoints"),
-				`panic("implement me")`,
-				v.Parameters,
-				v.Results,
-			))
-			continue
-		}
-		f.Structs[0].Vars = append(f.Structs[0].Vars, parser.NewNameType(v.Name+"Endpoint", "endpoint.Endpoint"))
 
 		f.Methods = append(f.Methods, parser.NewMethodWithComment(
 			"Make"+v.Name+"Endpoint",
@@ -1268,11 +1233,6 @@ func (sg *ServiceInitGenerator) generateEndpointsRequests(name string, iface *pa
 	))
 
 	for _, v := range iface.Methods {
-		cc := v.GetCustomField()
-		if cc.Expose == false {
-			continue
-		}
-
 		reqPrams := []parser.NamedTypeValue{}
 		for _, p := range v.Parameters {
 			if p.Type != "context.Context" {
@@ -1309,12 +1269,12 @@ func (sg *ServiceInitGenerator) generateEndpointsRequests(name string, iface *pa
 		}
 	}
 
-	nm := iface.ExposeMethodLength()
+	nm := len(iface.Methods)
 	var body = make([]string, nm*2+2)
 	body[0] = "package endpoints"
 	body[1] = f.Interfaces[0].String()
 
-	for i := 0; i < nm; i++ {
+	for i, _ := range iface.Methods {
 		body[2*i+2] = f.Structs[i].String()
 		body[2*i+3] = f.Methods[i].String()
 	}
@@ -1366,11 +1326,6 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 	f.Package = "endpoints"
 
 	for _, v := range iface.Methods {
-		cc := v.GetCustomField()
-		if cc.Expose == false {
-			continue
-		}
-
 		reqPrams := []parser.NamedTypeValue{}
 		for _, p := range v.Parameters {
 			if p.Type != "context.Context" {
@@ -1442,7 +1397,7 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 		))
 	}
 
-	nm := iface.ExposeMethodLength()
+	nm := len(iface.Methods)
 	var body = make([]string, 3+nm*4)
 	tRes, err := te.ExecuteString("{{template \"vars\" .}}", f.Vars)
 	if err != nil {
@@ -1492,7 +1447,7 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 )`, customResponseImport, serviceImport)
 	a, _ := format.Source([]byte(strings.TrimSpace(tRes)))
 	body[1] = string(a)
-	for i := 0; i < nm; i++ {
+	for i, _ := range iface.Methods {
 		body[4*i+2] = f.Structs[i].String()
 		body[4*i+3] = f.Methods[i*3+0].String()
 		body[4*i+4] = f.Methods[i*3+1].String()

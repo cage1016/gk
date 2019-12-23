@@ -1,5 +1,5 @@
-	defer func(begin time.Time) {
+	defer func() {
 	    lm.logger.Log("method", "{{$.Calling.Name}}" {{range $i,$v := $.Request.Vars}}{{if gt (len $.Request.Vars) 0}}, "{{$v.Name}}", {{$v.Name}}{{end}}{{end}}, "err", err)
-	}(time.Now())
+	}()
 
 	return lm.next.{{$.Calling.Name}}(ctx {{if gt (len $.Request.Vars) 0}}{{range $i,$v := $.Request.Vars}}, {{$v.Name}}{{end}}{{end}})
