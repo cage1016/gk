@@ -1,29 +1,29 @@
 {
-  "service":{
-    "path":"internal{{fileSeparator}}app{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}{{fileSeparator}}service",
-    "file_name":"service.go",
-    "interface_name":"{{`{{toUpperFirstCamelCase .ServiceName}}`}}Service",
-    "struct_name":"stub{{`{{toCamelCase .ServiceName}}`}}Service"
+  "service": {
+    "path": "internal{{fileSeparator}}app{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}{{fileSeparator}}service",
+    "file_name": "service.go",
+    "interface_name": "{{`{{toUpperFirstCamelCase .ServiceName}}`}}Service",
+    "struct_name": "stub{{`{{toCamelCase .ServiceName}}`}}Service"
   },
-  "middleware":{
-    "name":"middleware.go"
+  "middleware": {
+    "name": "middleware.go"
   },
-  "endpoints":{
-    "path":"internal{{fileSeparator}}app{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}{{fileSeparator}}endpoints",
-    "file_name":"endpoints.go",
-    "requests_file_name":"requests.go",
-    "responses_file_name":"responses.go"
+  "endpoints": {
+    "path": "internal{{fileSeparator}}app{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}{{fileSeparator}}endpoints",
+    "file_name": "endpoints.go",
+    "requests_file_name": "requests.go",
+    "responses_file_name": "responses.go"
   },
-  "transports":{
-    "path":"internal{{fileSeparator}}app{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}{{fileSeparator}}transports",
-    "file_name":"{{`{{.TransportType}}`}}.go"
+  "transports": {
+    "path": "internal{{fileSeparator}}app{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}{{fileSeparator}}transports",
+    "file_name": "{{`{{.TransportType}}`}}.go"
   },
-  "pb":{
-    "path":"pb{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}"
+  "pb": {
+    "path": "pb{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}"
   },
-  "cmd":{
-   "path":"cmd{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}",
-   "file_name":"main.go"
+  "cmd": {
+    "path": "cmd{{fileSeparator}}{{`{{toSnakeCase .ServiceName}}`}}",
+    "file_name": "main.go"
   },
   "custom_errors": {
     "path": "internal{{fileSeparator}}pkg{{fileSeparator}}errors",
@@ -32,7 +32,9 @@
   "custom_responses": {
     "path": "internal{{fileSeparator}}pkg{{fileSeparator}}responses",
     "responses_file_name": "responses.go",
-    "errors_file_name": "errors.go"
+    "errors_file_name": "errors.go",
+    "decode_file_name": "decode.go",
+    "httpstatus_file_name": "httpstatus.go"
   },
-  "default_transport":"http"
+  "default_transport": "http"
 }

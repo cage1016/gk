@@ -30,7 +30,7 @@ func (sg *ServiceGenerator) Generate(name string) error {
 
 	// new service
 	{
-		logrus.Info(fmt.Sprintf("Generating service: %s", name))
+		logrus.Info("Service Generating...")
 		iname, err := te.ExecuteString(viper.GetString("service.interface_name"), map[string]string{
 			"ServiceName": name,
 		})
@@ -66,10 +66,7 @@ func (sg *ServiceGenerator) Generate(name string) error {
 		if err != nil {
 			return err
 		}
-		b, err := defaultFs.Exists(path)
-		if err != nil {
-			return err
-		}
+
 		fname, err := te.ExecuteString(viper.GetString("service.file_name"), map[string]string{
 			"ServiceName": name,
 		})
@@ -77,23 +74,37 @@ func (sg *ServiceGenerator) Generate(name string) error {
 		if err != nil {
 			return err
 		}
-		if b {
-			logrus.Debug("Service folder already exists")
-			return fs.NewDefaultFs(path).WriteFile(fname, f.String(), false)
-		}
 
 		err = defaultFs.MkdirAll(path)
 		logrus.Debug(fmt.Sprintf("Creating folder structure : %s", path))
 		if err != nil {
 			return err
 		}
-		err = fs.NewDefaultFs(path).WriteFile(fname, f.String(), false)
+
+		fp := path + defaultFs.FilePathSeparator() + fname
+		b, err := defaultFs.Exists(fp)
+		if err != nil {
+			return err
+		}
+
+		if b && !viper.GetBool("gk_force") {
+			logrus.Info(fmt.Sprintf("Generating service: %s", name))
+		} else {
+			logrus.Info("Generating " + fp)
+		}
+
+		err = fs.NewDefaultFs(path).WriteFile(fname, f.String(), viper.GetBool("gk_force"))
 		if err != nil {
 			return err
 		}
 	}
 
-	// custom response/error
+	cepath, err := te.ExecuteString(viper.GetString("custom_errors.path"), map[string]string{"ServiceName": name})
+	if err != nil {
+		return err
+	}
+
+	// custom response
 	{
 		logrus.Info("Custom Responses Generating...")
 
@@ -101,70 +112,135 @@ func (sg *ServiceGenerator) Generate(name string) error {
 		if err != nil {
 			return err
 		}
-
-		// responses.go
-		crrname, err := te.ExecuteString(viper.GetString("custom_responses.responses_file_name"), map[string]string{"ServiceName": name})
-		if err != nil {
-			return err
-		}
-
 		err = defaultFs.MkdirAll(crpath)
-		logrus.Debug(fmt.Sprintf("Creating %s in %s", crrname, crpath))
 		if err != nil {
 			return err
 		}
 
-		crrStr, err := te.Execute("custom_responses.go", nil)
-		if err != nil {
-			return err
+		// response/responses.go
+		{
+			crrname, err := te.ExecuteString(viper.GetString("custom_responses.responses_file_name"), map[string]string{"ServiceName": name})
+			if err != nil {
+				return err
+			}
+
+			logrus.Debug(fmt.Sprintf("Creating %s in %s", crrname, crpath))
+			crrStr, err := te.Execute("custom_responses.go", nil)
+			if err != nil {
+				return err
+			}
+
+			crrfile := crpath + defaultFs.FilePathSeparator() + crrname
+			b, err := defaultFs.Exists(crrfile)
+			if err != nil {
+				return err
+			}
+			if b && !viper.GetBool("gk_force") {
+				logrus.Info("custom response/responses.go exists, skip re-generate")
+			} else {
+				logrus.Info("Generating " + crrfile)
+			}
+
+			err = fs.NewDefaultFs(crpath).WriteFile(crrname, crrStr, viper.GetBool("gk_force"))
+			if err != nil {
+				return err
+			}
+
 		}
 
-		crrfile := crpath + defaultFs.FilePathSeparator() + crrname
-		b, err := defaultFs.Exists(crrfile)
-		if err != nil {
-			return err
-		}
-		if b {
-			logrus.Info("custom response exists, skip re-generate")
+		// response/errors.go
+		{
+			crename, err := te.ExecuteString(viper.GetString("custom_responses.errors_file_name"), map[string]string{"ServiceName": name})
+			if err != nil {
+				return err
+			}
+
+			logrus.Debug(fmt.Sprintf("Creating %s in %s", crename, crpath))
+			creStr, err := te.Execute("custom_responses_error.go", map[string]string{"ErrorsPackage": pp + defaultFs.FilePathSeparator() + cepath})
+			if err != nil {
+				return err
+			}
+
+			crefile := crpath + defaultFs.FilePathSeparator() + crename
+			b, err := defaultFs.Exists(crefile)
+			if err != nil {
+				return err
+			}
+			if b && !viper.GetBool("gk_force") {
+				logrus.Info("custom response/errors.go exists, skip re-generate")
+			} else {
+				logrus.Info("Generating " + crefile)
+			}
+
+			err = defaultFs.WriteFile(crefile, creStr, viper.GetBool("gk_force"))
+			if err != nil {
+				return err
+			}
 		}
 
-		err = defaultFs.WriteFile(crrfile, crrStr, true)
-		if err != nil {
-			return err
+		// response/decode.go
+		{
+			crdname, err := te.ExecuteString(viper.GetString("custom_responses.decode_file_name"), nil)
+			if err != nil {
+				return err
+			}
+
+			logrus.Debug(fmt.Sprintf("Creating %s in %s", crdname, crpath))
+			creStr, err := te.Execute("custom_responses_decode.go", map[string]string{"ErrorsPackage": pp + defaultFs.FilePathSeparator() + cepath})
+			if err != nil {
+				return err
+			}
+
+			crefile := crpath + defaultFs.FilePathSeparator() + crdname
+			b, err := defaultFs.Exists(crefile)
+			if err != nil {
+				return err
+			}
+			if b && !viper.GetBool("gk_force") {
+				logrus.Info("custom response/decode.go exists, skip re-generate")
+			} else {
+				logrus.Info("Generating " + crefile)
+			}
+
+			err = defaultFs.WriteFile(crefile, creStr, viper.GetBool("gk_force"))
+			if err != nil {
+				return err
+			}
 		}
 
-		// errors.go
-		crename, err := te.ExecuteString(viper.GetString("custom_responses.errors_file_name"), map[string]string{"ServiceName": name})
-		if err != nil {
-			return err
-		}
+		// response/httpstatus.go
+		{
+			crhname, err := te.ExecuteString(viper.GetString("custom_responses.httpstatus_file_name"), nil)
+			if err != nil {
+				return err
+			}
 
-		cepath, err := te.ExecuteString(viper.GetString("custom_errors.path"), map[string]string{"ServiceName": name})
-		if err != nil {
-			return err
-		}
+			logrus.Debug(fmt.Sprintf("Creating %s in %s", crhname, crpath))
+			creStr, err := te.Execute("custom_responses_httpstatus.go", map[string]string{"ErrorsPackage": pp + defaultFs.FilePathSeparator() + cepath})
+			if err != nil {
+				return err
+			}
 
-		creStr, err := te.Execute("custom_responses_error.go",  map[string]string{"ErrorsPackage": pp + defaultFs.FilePathSeparator() + cepath})
-		if err != nil {
-			return err
-		}
+			crefile := crpath + defaultFs.FilePathSeparator() + crhname
+			b, err := defaultFs.Exists(crefile)
+			if err != nil {
+				return err
+			}
+			if b && !viper.GetBool("gk_force") {
+				logrus.Info("custom response/httpstatus.go exists, skip re-generate")
+			} else {
+				logrus.Info("Generating " + crefile)
+			}
 
-		crefile := crpath + defaultFs.FilePathSeparator() + crename
-		b, err = defaultFs.Exists(crefile)
-		if err != nil {
-			return err
-		}
-		if b {
-			logrus.Info("custom response(error) exists, skip re-generate")
-		}
-
-		err = defaultFs.WriteFile(crefile, creStr, true)
-		if err != nil {
-			return err
+			err = defaultFs.WriteFile(crefile, creStr, viper.GetBool("gk_force"))
+			if err != nil {
+				return err
+			}
 		}
 	}
 
 	// custom error
+	// errors/errors.go
 	{
 		logrus.Info("Custom Errors Generating...")
 
@@ -172,17 +248,18 @@ func (sg *ServiceGenerator) Generate(name string) error {
 		if err != nil {
 			return err
 		}
+
+		err = defaultFs.MkdirAll(cepath)
+		if err != nil {
+			return err
+		}
+
 		cename, err := te.ExecuteString(viper.GetString("custom_errors.file_name"), map[string]string{"ServiceName": name})
 		if err != nil {
 			return err
 		}
 
-		err = defaultFs.MkdirAll(cepath)
 		logrus.Debug(fmt.Sprintf("Creating %s in %s", cename, cepath))
-		if err != nil {
-			return err
-		}
-
 		ceStr, err := te.Execute("custom_errors.go", nil)
 		if err != nil {
 			return err
@@ -193,11 +270,13 @@ func (sg *ServiceGenerator) Generate(name string) error {
 		if err != nil {
 			return err
 		}
-		if b {
-			logrus.Info("custom errors exists, skip re-generate")
+		if b && !viper.GetBool("gk_force") {
+			logrus.Info("custom errors/errors.go exists, skip re-generate")
+		} else {
+			logrus.Info("Generating " + cefile)
 		}
 
-		err = defaultFs.WriteFile(cefile, ceStr, true)
+		err = defaultFs.WriteFile(cefile, ceStr, viper.GetBool("gk_force"))
 		if err != nil {
 			return err
 		}

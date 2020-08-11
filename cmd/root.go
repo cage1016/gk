@@ -34,7 +34,7 @@ func init() {
 
 	RootCmd.PersistentFlags().Bool("testing", false, "If testing the generator.")
 	RootCmd.PersistentFlags().BoolP("debug", "d", false, "If you want to se the debug logs.")
-	RootCmd.PersistentFlags().BoolP("force", "f", false, "Force overide existing files without asking.")
+	RootCmd.PersistentFlags().BoolP("force", "f", false, "Force overwrite existing files without asking.")
 	RootCmd.PersistentFlags().String("folder", "", "If you want to specify the base folder of the project.")
 	viper.BindPFlag("gk_testing", RootCmd.PersistentFlags().Lookup("testing"))
 	viper.BindPFlag("gk_folder", RootCmd.PersistentFlags().Lookup("folder"))
@@ -68,14 +68,34 @@ func initConfig() {
 	}
 }
 func initViperDefaults() {
-	viper.SetDefault("service.path", "{{toSnakeCase .ServiceName}}"+afero.FilePathSeparator+"pkg"+afero.FilePathSeparator+"service")
+	viper.SetDefault("service.path", "internal"+afero.FilePathSeparator+"app"+afero.FilePathSeparator+"{{toSnakeCase .ServiceName}}"+afero.FilePathSeparator+"service")
 	viper.SetDefault("service.file_name", "service.go")
 	viper.SetDefault("service.interface_name", "{{toUpperFirstCamelCase .ServiceName}}Service")
 	viper.SetDefault("service.struct_name", "stub{{toCamelCase .ServiceName}}Service")
-	viper.SetDefault("middleware.file_name", "middleware.go")
-	viper.SetDefault("endpoints.path", "{{toSnakeCase .ServiceName}}"+afero.FilePathSeparator+"pkg"+afero.FilePathSeparator+"endpoints")
+
+	viper.SetDefault("middleware.name", "middleware.go")
+
+	viper.SetDefault("endpoints.path", "internal"+afero.FilePathSeparator+"app"+afero.FilePathSeparator+"{{toSnakeCase .ServiceName}}"+afero.FilePathSeparator+"endpoints")
 	viper.SetDefault("endpoints.file_name", "endpoints.go")
-	viper.SetDefault("transports.path", "{{toSnakeCase .ServiceName}}"+afero.FilePathSeparator+"pkg"+afero.FilePathSeparator+"{{.TransportType}}")
-	viper.SetDefault("transports.file_name", "handler.go")
+	viper.SetDefault("endpoints.requests_file_name", "requests.go")
+	viper.SetDefault("endpoints.responses_file_name", "responses.go")
+
+	viper.SetDefault("transports.path", "internal"+afero.FilePathSeparator+"app"+afero.FilePathSeparator+"{{toSnakeCase .ServiceName}}"+afero.FilePathSeparator+"transports")
+	viper.SetDefault("transports.file_name", "{{.TransportType}}.go")
+
+	viper.SetDefault("pb.path", "pb"+afero.FilePathSeparator+"{{toSnakeCase .ServiceName}}")
+
+	viper.SetDefault("cmd.path", "cmd"+afero.FilePathSeparator+"{{toSnakeCase .ServiceName}}")
+	viper.SetDefault("cmd.file_name", "main.go")
+
+	viper.SetDefault("custom_errors.path", "internal"+afero.FilePathSeparator+"pkg"+afero.FilePathSeparator+"errors")
+	viper.SetDefault("custom_errors.file_name", "errors.go")
+
+	viper.SetDefault("custom_responses.path", "internal"+afero.FilePathSeparator+"pkg"+afero.FilePathSeparator+"responses")
+	viper.SetDefault("custom_responses.responses_file_name", "responses.go")
+	viper.SetDefault("custom_responses.errors_file_name", "errors.go")
+	viper.SetDefault("custom_responses.decode_file_name", "decode.go")
+	viper.SetDefault("custom_responses.httpstatus_file_name", "httpstatus.go")
+
 	viper.SetDefault("default_transport", "http")
 }
