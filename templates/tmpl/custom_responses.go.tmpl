@@ -6,11 +6,11 @@ type DataRes struct {
 }
 
 type Responser interface {
-	Response() interface{}
+	Response() (res interface{})
 }
 
 type BinaryResponser interface {
-	GetBinary() []byte
+	GetBinary() (res []byte)
 }
 
 type Paging struct {

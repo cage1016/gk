@@ -93,7 +93,7 @@ func (sg *AddGRPCGenerator) Generate(name string) error {
 	if len(iface.Methods) == 0 {
 		return errors.New("The service has no method please implement the interface methods")
 	}
-	return g.generateGRPCTransport(name, iface)
+	return g.generateGRPCTransport(name, iface, "grpc")
 }
 
 func NewAddGRPCGenerator() *AddGRPCGenerator {

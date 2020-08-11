@@ -93,7 +93,7 @@ func (sg *AddHttpGenerator) Generate(name string) error {
 	if len(iface.Methods) == 0 {
 		return errors.New("The service has no method please implement the interface methods")
 	}
-	return g.generateHttpTransport(name, iface)
+	return g.generateHttpTransport(name, iface, "http")
 }
 func NewAddHttpGenerator() *AddHttpGenerator {
 	return &AddHttpGenerator{}

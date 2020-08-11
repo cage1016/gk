@@ -3,8 +3,10 @@ package responses
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	httptransport "github.com/go-kit/kit/transport/http"
 	"google.golang.org/grpc/status"
@@ -15,6 +17,18 @@ import (
 const (
 	contentType string = "application/json"
 )
+
+func JSONErrorDecoder(r *http.Response) error {
+	contentType := r.Header.Get("Content-Type")
+	if !strings.Contains(contentType, "application/json") {
+		return fmt.Errorf("expected JSON formatted error, got Content-Type %s", contentType)
+	}
+	var w ErrorWrapper
+	if err := json.NewDecoder(r.Body).Decode(&w); err != nil {
+		return err
+	}
+	return errors.New(w.Error)
+}
 
 func EncodeJSONResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -41,7 +55,7 @@ func EncodeJSONResponse(_ context.Context, w http.ResponseWriter, response inter
 	return json.NewEncoder(w).Encode(response)
 }
 
-func ErrorEncoder(f func(errorVal errors.Error) (code int)) func(_ context.Context, err error, w http.ResponseWriter) {
+func ErrorEncodeJSONResponse(f func(errorVal errors.Error) (code int)) func(_ context.Context, err error, w http.ResponseWriter) {
 	return func(_ context.Context, err error, w http.ResponseWriter) {
 		code := http.StatusInternalServerError
 		var message string

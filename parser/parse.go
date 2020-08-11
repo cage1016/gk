@@ -260,7 +260,11 @@ func (fp *FileParser) parseFieldListAsNamedTypes(list *ast.FieldList) []NamedTyp
 				if strings.HasPrefix(typ, "[]") {
 					names = append(names, typ[2:3]+fmt.Sprintf("%d", i))
 				} else {
-					names = append(names, typ[:1]+fmt.Sprintf("%d", i))
+					if len(typ) > 0 {
+						names = append(names, typ[:1]+fmt.Sprintf("%d", i))
+					}else{
+						names = append(names,"")
+					}
 				}
 			}
 			for _, name := range names {
@@ -294,6 +298,8 @@ func (fp *FileParser) getTypeFromExp(e ast.Expr) string {
 	case *ast.ChanType:
 		value := fp.getTypeFromExp(k.Value)
 		tp = "chan " + value
+	case *ast.InterfaceType:
+		tp = "interface{}"
 	default:
 		logrus.Info("Type Expresion not supported")
 		return ""

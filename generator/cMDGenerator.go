@@ -182,7 +182,8 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 		parser.NewNameType("pb", fmt.Sprintf(`"%s/pb/%s"`, projectPath, strings.ToLower(name))),
 		parser.NewNameType("", "\""+endpointsImport+"\""),
 		parser.NewNameType("", "\""+serviceImport+"\""),
-		parser.NewNameType("", "\""+transportsImport+"\""),
+		parser.NewNameType("transportsgrpc", "\""+transportsImport+"/grpc\""),
+		parser.NewNameType("transportshttp", "\""+transportsImport+"/http\""),
 	}
 
 	// constants
@@ -375,7 +376,7 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 			
 				p := fmt.Sprintf(":%s", port)
 				// create a server
-				srv := &http.Server{Addr: p, Handler: transports.NewHTTPHandler(endpoints, tracer, zipkinTracer, logger)}
+				srv := &http.Server{Addr: p, Handler: transportshttp.NewHTTPHandler(endpoints, tracer, zipkinTracer, logger)}
 				level.Info(logger).Log("protocol", "HTTP", "exposed", port)
 				go func() {
 					// service connections
@@ -421,7 +422,7 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 								var server *grpc.Server
 								level.Info(logger).Log("protocol", "GRPC", "exposed", port)
 								server = grpc.NewServer(grpc.UnaryInterceptor(kitgrpc.Interceptor))
-								pb.Register%sServer(server, transports.MakeGRPCServer(endpoints, tracer, zipkinTracer, logger))
+								pb.Register%sServer(server, transportsgrpc.MakeGRPCServer(endpoints, tracer, zipkinTracer, logger))
 								healthgrpc.RegisterHealthServer(server, hs)
 								reflection.Register(server)
 							

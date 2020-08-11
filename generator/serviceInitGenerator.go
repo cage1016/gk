@@ -242,18 +242,18 @@ func (sg *ServiceInitGenerator) generateTransport(name string, iface *parser.Int
 	switch transport {
 	case "http":
 		logrus.Info("Selected http transport.")
-		return sg.generateHttpTransport(name, iface)
+		return sg.generateHttpTransport(name, iface, transport)
 	case "grpc":
 		logrus.Info("Selected grpc transport.")
-		return sg.generateGRPCTransport(name, iface)
+		return sg.generateGRPCTransport(name, iface, transport)
 	case "thrift":
 		logrus.Info("Selected thrift transport.")
-		return sg.generateThriftTransport(name, iface)
+		return sg.generateThriftTransport(name, iface, transport)
 	default:
 		return errors.New(fmt.Sprintf("Transport `%s` not supported", transport))
 	}
 }
-func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser.Interface) error {
+func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser.Interface, transport string) error {
 	logrus.Info("Generating http transport...")
 	te := template.NewEngine()
 	defaultFs := fs.Get()
@@ -262,21 +262,23 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 
 	//
 	var projectPath string
-	goModPackage := utils.GetModPackage()
-	if goModPackage == "" {
-		gosrc := utils.GetGOPATH() + "/src/"
-		gosrc = strings.Replace(gosrc, "\\", "/", -1)
-		pwd, err := os.Getwd()
-		if err != nil {
-			return err
+	{
+		goModPackage := utils.GetModPackage()
+		if goModPackage == "" {
+			gosrc := utils.GetGOPATH() + "/src/"
+			gosrc = strings.Replace(gosrc, "\\", "/", -1)
+			pwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			if viper.GetString("gk_folder") != "" {
+				pwd += "/" + viper.GetString("gk_folder")
+			}
+			pwd = strings.Replace(pwd, "\\", "/", -1)
+			projectPath = strings.Replace(pwd, gosrc, "", 1)
+		} else {
+			projectPath = goModPackage
 		}
-		if viper.GetString("gk_folder") != "" {
-			pwd += "/" + viper.GetString("gk_folder")
-		}
-		pwd = strings.Replace(pwd, "\\", "/", -1)
-		projectPath = strings.Replace(pwd, gosrc, "", 1)
-	} else {
-		projectPath = goModPackage
 	}
 
 	enpointsPath, err := te.ExecuteString(viper.GetString("endpoints.path"), map[string]string{
@@ -313,7 +315,6 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 	}
 	customResponsesImport := projectPath + "/" + strings.Replace(customResponsesPath, "\\", "/", -1)
 
-
 	handlerFile.Imports = []parser.NamedTypeValue{
 		parser.NewNameType("", "\"bytes\""),
 		parser.NewNameType("", "\"context\""),
@@ -338,6 +339,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 		parser.NewNameType("", "\"github.com/prometheus/client_golang/prometheus/promhttp\""),
 		parser.NewNameType("", "\"github.com/sony/gobreaker\""),
 		parser.NewNameType("", "\"golang.org/x/time/rate\""),
+		parser.NewNameType("", "\"github.com/rs/cors\""),
 		parser.NewNameType("", ""),
 		parser.NewNameType("", "\""+endpointsImport+"\""),
 		parser.NewNameType("", "\""+customResponsesImport+"\""),
@@ -345,48 +347,86 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 		parser.NewNameType("", "\""+customErrorImport+"\""),
 	}
 
-	// JSONErrorDecoder
-	handlerFile.Methods = append(handlerFile.Methods, parser.NewMethod(
-		"JSONErrorDecoder",
-		parser.NamedTypeValue{},
-		`contentType := r.Header.Get("Content-Type")
-				if !strings.Contains(contentType, "application/json") {
-					return fmt.Errorf("expected JSON formatted error, got Content-Type %s", contentType)
+	// Handlers with
+	for _, m := range iface.Methods {
+		cc := m.GetCustomField()
+		if cc.Expose == false {
+			continue
+		}
+
+		handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
+			fmt.Sprintf("%sHandler", utils.ToUpperFirstCamelCase(m.Name)),
+			fmt.Sprintf(`Show%s godoc
+						@Summary %s
+						@Description TODO
+						@Tags TODO
+						@Accept json
+						@Produce json
+						@Router /%s [%s]`,
+				utils.ToUpperFirstCamelCase(name),
+				m.Name,
+				func(router string) string {
+					if router == "" {
+						return utils.ToLowerSnakeCase(m.Name)
+					}
+					return router
+				}(cc.Router), strings.ToLower(cc.Method)),
+			parser.NamedTypeValue{},
+			fmt.Sprintf(`m.%s("/%s", httptransport.NewServer(
+				   endpoints.%sEndpoint,
+				   decodeHTTP%sRequest,
+				   responses.EncodeJSONResponse,
+					append(options, httptransport.ServerBefore(opentracing.HTTPToContext(otTracer, "%s", logger), kitjwt.HTTPToContext()))...,
+				))`, utils.ToUpperFirstCamelCase(cc.Method), func(router string) string {
+				if router == "" {
+					return utils.ToLowerSnakeCase(m.Name)
 				}
-				var w responses.ErrorWrapper
-				if err := json.NewDecoder(r.Body).Decode(&w); err != nil {
-					return err
-				}
-				return errors.New(w.Error)`,
-		[]parser.NamedTypeValue{
-			parser.NewNameType("r", "*http.Response"),
-		},
-		[]parser.NamedTypeValue{
-			parser.NewNameType("", "error"),
-		},
-	))
+				return router
+			}(cc.Router), m.Name, m.Name, m.Name),
+			[]parser.NamedTypeValue{
+				parser.NewNameType("m", "*bone.Mux"),
+				parser.NewNameType("endpoints", "endpoints.Endpoints"),
+				parser.NewNameType("options", "[]httptransport.ServerOption"),
+				parser.NewNameType("otTracer", "stdopentracing.Tracer"),
+				parser.NewNameType("logger", "log.Logger"),
+			},
+			[]parser.NamedTypeValue{},
+		))
+	}
 
 	// NewHTTPHandler
 	{
+		buf := []string{}
+		for _, m := range iface.Methods {
+			cc := m.GetCustomField()
+			if cc.Expose == false {
+				continue
+			}
+
+			buf = append(buf, fmt.Sprintf("%sHandler(m, endpoints, options, otTracer, logger)", utils.ToUpperFirstCamelCase(m.Name)))
+		}
+
 		handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
 			"NewHTTPHandler",
 			`NewHTTPHandler returns a handler that makes a set of endpoints available on
 			 predefined paths.`,
 			parser.NamedTypeValue{},
-			`	// Zipkin HTTP Server Trace can either be instantiated per endpoint with a
+			fmt.Sprintf(`	// Zipkin HTTP Server Trace can either be instantiated per endpoint with a
 					// provided operation name or a global tracing service can be instantiated
 					// without an operation name and fed to each Go kit endpoint as ServerOption.
 					// In the latter case, the operation name will be the endpoint's http method.
 					// We demonstrate a global tracing service here.
 					zipkinServer := zipkin.HTTPServerTrace(zipkinTracer)
-				
+	
 					options := []httptransport.ServerOption{
-						httptransport.ServerErrorEncoder(httpEncodeError),
+						httptransport.ServerErrorEncoder(responses.ErrorEncodeJSONResponse(CustomErrorEncoder)),
 						httptransport.ServerErrorLogger(logger),
 						zipkinServer,
 					}
-
-					m := bone.New()`,
+	
+					m := bone.New()
+					%s
+					return cors.AllowAll().Handler(m)`, strings.Join(buf, "\n")),
 			[]parser.NamedTypeValue{
 				parser.NewNameType("endpoints", "endpoints.Endpoints"),
 				parser.NewNameType("otTracer", "stdopentracing.Tracer"),
@@ -397,6 +437,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 				parser.NewNameType("", "http.Handler"),
 			},
 		))
+
 		for _, m := range iface.Methods {
 			cc := m.GetCustomField()
 			if cc.Expose == false {
@@ -429,21 +470,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 					parser.NewNameType("", "error"),
 				},
 			))
-			handlerFile.Methods[1].Body += "\n" + fmt.Sprintf(`m.%s("/%s", httptransport.NewServer(
-        endpoints.%sEndpoint,
-        decodeHTTP%sRequest,
-        encodeJSONResponse,
-		append(options, httptransport.ServerBefore(opentracing.HTTPToContext(otTracer, "%s", logger), kitjwt.HTTPToContext()))...,
-    ))`, utils.ToUpperFirstCamelCase(cc.Method), func(router string) string {
-				if router == "" {
-					return utils.ToLowerSnakeCase(m.Name)
-				}
-				return router
-			}(cc.Router), m.Name, m.Name, m.Name)
 		}
-
-		handlerFile.Methods[1].Body += "\n" + `m.Get("/metrics", promhttp.Handler())
-												return m`
 	}
 
 	// NewHTTPClient
@@ -463,20 +490,20 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 						if err != nil {
 							return nil, err
 						}
-					
+	
 						// Zipkin HTTP Client Trace can either be instantiated per endpoint with a
 						// provided operation name or a global tracing client can be instantiated
 						// without an operation name and fed to each Go kit endpoint as ClientOption.
 						// In the latter case, the operation name will be the endpoint's http method.
 						zipkinClient := zipkin.HTTPClientTrace(zipkinTracer)
-					
+	
 						// global client middlewares
 						options := []httptransport.ClientOption{
 							zipkinClient,
 						}
-
+	
 						e := endpoints.Endpoints{}
-					
+	
 						// Each individual endpoint is an http/transport.Client (which implements
 						// endpoint.Endpoint) that gets wrapped with various middlewares. If you
 						// made your own client library, you'd do this work there, so your server
@@ -536,6 +563,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 					parser.NewNameType("err", "error"),
 				},
 			))
+
 			handlerFile.Methods = append(handlerFile.Methods, parser.NewMethodWithComment(
 				fmt.Sprintf("decodeHTTP%sResponse", m.Name),
 				fmt.Sprintf(`decodeHTTP%sResponse is a transport/http.DecodeResponseFunc that decodes a
@@ -544,7 +572,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 			    the specific error message from the response body. Primarily useful in a client.`, m.Name),
 				parser.NamedTypeValue{},
 				fmt.Sprintf(`if r.StatusCode != http.StatusOK {
-										return nil, JSONErrorDecoder(r)
+										return nil, responses.JSONErrorDecoder(r)
 									}
 									var resp endpoints.%sResponse
 									err := json.NewDecoder(r.Body).Decode(&resp)
@@ -560,7 +588,7 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 			))
 
 			fcname := utils.ToLowerFirstCamelCase(m.Name)
-			handlerFile.Methods[iface.ExposeMethodLength()*1+2].Body += "\n" + fmt.Sprintf(
+			handlerFile.Methods[iface.ExposeMethodLength()*2+1].Body += "\n" + fmt.Sprintf(
 				`// The %s endpoint is the same thing, with slightly different
 						// middlewares to demonstrate how to specialize per-endpoint.
 						var %sEndpoint endpoint.Endpoint
@@ -587,99 +615,28 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 				fcname, m.Name, fcname,
 				m.Name, utils.ToLowerFirstCamelCase(m.Name))
 
-			handlerFile.Methods[iface.ExposeMethodLength()*1+2].Body += "\n"
+			handlerFile.Methods[iface.ExposeMethodLength()*2+1].Body += "\n"
 		}
-		handlerFile.Methods[iface.ExposeMethodLength()*1+2].Body += "\n" + `// Returning the endpoint.Set as a service.Service relies on the
-	// endpoint.Set implementing the Service methods. That's just a simple bit
-	// of glue code.
-	return e, nil`
+
+		handlerFile.Methods[iface.ExposeMethodLength()*2+1].Body += "\n" + `// Returning the endpoint.Set as a service.Service relies on the
+		// endpoint.Set implementing the Service methods. That's just a simple bit
+		// of glue code.
+		return e, nil`
 	}
 
-	// httpEncodeError
+	// CustomErrorEncoder
 	handlerFile.Methods = append(handlerFile.Methods, parser.NewMethod(
-		"httpEncodeError",
+		"CustomErrorEncoder",
 		parser.NamedTypeValue{},
-		`code := http.StatusInternalServerError
-				var message string
-				var errs []errors.Errors
-				w.Header().Set("Content-Type", contentType)
-				if s, ok := status.FromError(err); !ok {
-					// HTTP
-					switch errorVal := err.(type) {
-					case errors.Error:
-						switch {
-						// TODO write your own custom error check here
-						}
-			
-						if errorVal.Msg() != "" {
-							message, errs = errorVal.Msg(), errorVal.Errors()
-						}
-					default:
-						switch err {
-						case io.ErrUnexpectedEOF, io.EOF:
-							code = http.StatusBadRequest
-						case kitjwt.ErrTokenContextMissing:
-							code = http.StatusUnauthorized
-						default:
-							switch err.(type) {
-							case *json.SyntaxError, *json.UnmarshalTypeError:
-								code = http.StatusBadRequest
-							}
-						}
-
-						errs = errors.FromError(err.Error())
-						message = errs[0].Message
-					}
-				} else {
-					// GRPC
-					code = HTTPStatusFromCode(s.Code())
-					errs = errors.FromError(s.Message())
-					message = errs[0].Message
+		`switch {
+				// TODO write your own custom error check here
 				}
-			
-				w.WriteHeader(code)
-				json.NewEncoder(w).Encode(responses.ErrorRes{responses.ErrorResItem{code, message, errs}})`,
+				return`,
 		[]parser.NamedTypeValue{
-			parser.NewNameType("_", "context.Context"),
-			parser.NewNameType("err", "error"),
-			parser.NewNameType("w", "http.ResponseWriter"),
-		},
-		[]parser.NamedTypeValue{},
-	))
-
-	// encodeJSONResponse
-	handlerFile.Methods = append(handlerFile.Methods, parser.NewMethod(
-		"encodeJSONResponse",
-		parser.NamedTypeValue{},
-		`w.Header().Set("Content-Type", "application/json; charset=utf-8")
-				if headerer, ok := response.(httptransport.Headerer); ok {
-					for k, values := range headerer.Headers() {
-						for _, v := range values {
-							w.Header().Add(k, v)
-						}
-					}
-				}
-				code := http.StatusOK
-				if sc, ok := response.(httptransport.StatusCoder); ok {
-					code = sc.StatusCode()
-				}
-				w.WriteHeader(code)
-				if code == http.StatusNoContent {
-					return nil
-				}
-			
-				if ar, ok := response.(responses.Responser); ok {
-					return json.NewEncoder(w).Encode(ar.Response())
-				}
-			
-				return json.NewEncoder(w).Encode(response)`,
-		[]parser.NamedTypeValue{
-			parser.NewNameType("_", "context.Context"),
-			parser.NewNameType("w", "http.ResponseWriter"),
-			parser.NewNameType("response", "interface{}"),
+			parser.NewNameType("errorVal", "errors.Error"),
 		},
 		[]parser.NamedTypeValue{
-			parser.NewNameType("", "error"),
+			parser.NewNameType("code", "int"),
 		},
 	))
 
@@ -693,6 +650,10 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 	if err != nil {
 		return err
 	}
+
+	// concat transports
+	path = path + defaultFs.FilePathSeparator() + transport
+
 	b, err := defaultFs.Exists(path)
 	if err != nil {
 		return err
@@ -722,27 +683,9 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 		}
 	}
 
-	// http_util.go
-	httpUtil, err := te.Execute("http_util.go", nil)
-	if err != nil {
-		return err
-	}
-	httpUtilfile := path + defaultFs.FilePathSeparator() + "http_util.go"
-	b, err = defaultFs.Exists(httpUtilfile)
-	if err != nil {
-		return err
-	}
-	if b {
-		logrus.Info("http_util.go already exists, skip re-generate")
-	}
-	err = defaultFs.WriteFile(httpUtilfile, httpUtil, true)
-	if err != nil {
-		return err
-	}
-
 	return defaultFs.WriteFile(tfile, handlerFile.String(), false)
 }
-func (sg *ServiceInitGenerator) generateGRPCTransport(name string, iface *parser.Interface) error {
+func (sg *ServiceInitGenerator) generateGRPCTransport(name string, iface *parser.Interface, transport string) error {
 	logrus.Info("Generating grpc transport...")
 	te := template.NewEngine()
 	defaultFs := fs.Get()
@@ -861,7 +804,7 @@ func (sg *ServiceInitGenerator) generateGRPCTransport(name string, iface *parser
 		return defaultFs.WriteFile(tfile, cmpTmpl, false)
 	}
 }
-func (sg *ServiceInitGenerator) generateThriftTransport(name string, iface *parser.Interface) error {
+func (sg *ServiceInitGenerator) generateThriftTransport(name string, iface *parser.Interface, transport string) error {
 	logrus.Info("Generating thrift transport...")
 	te := template.NewEngine()
 	defaultFs := fs.Get()

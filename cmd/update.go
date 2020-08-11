@@ -6,8 +6,9 @@ import (
 
 // addCmd represents the add command
 var patchCmd = &cobra.Command{
-	Use:   "patch",
-	Short: "Use to patch exist service for consul service discovery",
+	Use:   "update",
+	Aliases: []string{"u"},
+	Short: "Use to update service",
 }
 
 func init() {

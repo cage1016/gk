@@ -106,6 +106,16 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 		"ServiceName": name,
 		//"TransportType": "grpc",
 	})
+
+	// add grcp transports
+	path = path + defaultFs.FilePathSeparator() + "grpc"
+	{
+		err = defaultFs.MkdirAll(path)
+		if err != nil {
+			return err
+		}
+	}
+
 	b, err = defaultFs.Exists(path)
 	if err != nil {
 		return err
@@ -122,21 +132,23 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 
 	//
 	var projectPath string
-	goModPackage := utils.GetModPackage()
-	if goModPackage == "" {
-		gosrc := utils.GetGOPATH() + "/src/"
-		gosrc = strings.Replace(gosrc, "\\", "/", -1)
-		pwd, err := os.Getwd()
-		if err != nil {
-			return err
+	{
+		goModPackage := utils.GetModPackage()
+		if goModPackage == "" {
+			gosrc := utils.GetGOPATH() + "/src/"
+			gosrc = strings.Replace(gosrc, "\\", "/", -1)
+			pwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			if viper.GetString("gk_folder") != "" {
+				pwd += "/" + viper.GetString("gk_folder")
+			}
+			pwd = strings.Replace(pwd, "\\", "/", -1)
+			projectPath = strings.Replace(pwd, gosrc, "", 1)
+		} else {
+			projectPath = goModPackage
 		}
-		if viper.GetString("gk_folder") != "" {
-			pwd += "/" + viper.GetString("gk_folder")
-		}
-		pwd = strings.Replace(pwd, "\\", "/", -1)
-		projectPath = strings.Replace(pwd, gosrc, "", 1)
-	} else {
-		projectPath = goModPackage
 	}
 
 	//pbImport := projectPath + "/" + path + defaultFs.FilePathSeparator() + "pb"
@@ -183,6 +195,7 @@ func (sg *GRPCInitGenerator) Generate(name string) error {
 		parser.NewNameType("grpctransport", "\"github.com/go-kit/kit/transport/grpc\""),
 		parser.NewNameType("stdopentracing", "\"github.com/opentracing/opentracing-go\""),
 		parser.NewNameType("stdzipkin", "\"github.com/openzipkin/zipkin-go\""),
+		parser.NewNameType("",""),
 		parser.NewNameType("", fmt.Sprintf("\"%s\"", customErrorImport)),
 		parser.NewNameType("", fmt.Sprintf("\"%s\"", pbImport)),
 		parser.NewNameType("", fmt.Sprintf("\"%s\"", endpointsImport)),

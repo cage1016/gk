@@ -93,7 +93,7 @@ func (sg *AddThriftGenerator) Generate(name string) error {
 	if len(iface.Methods) == 0 {
 		return errors.New("The service has no method please implement the interface methods")
 	}
-	return g.generateThriftTransport(name, iface)
+	return g.generateThriftTransport(name, iface, "thrift")
 }
 func NewAddThriftGenerator() *AddThriftGenerator {
 	return &AddThriftGenerator{}
