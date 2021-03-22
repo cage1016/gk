@@ -411,17 +411,19 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 			`NewHTTPHandler returns a handler that makes a set of endpoints available on
 			 predefined paths.`,
 			parser.NamedTypeValue{},
-			fmt.Sprintf(`	// Zipkin HTTP Server Trace can either be instantiated per endpoint with a
-					// provided operation name or a global tracing service can be instantiated
-					// without an operation name and fed to each Go kit endpoint as ServerOption.
-					// In the latter case, the operation name will be the endpoint's http method.
-					// We demonstrate a global tracing service here.
-					zipkinServer := zipkin.HTTPServerTrace(zipkinTracer)
-	
+			fmt.Sprintf(`
 					options := []httptransport.ServerOption{
 						httptransport.ServerErrorEncoder(responses.ErrorEncodeJSONResponse(CustomErrorEncoder)),
 						httptransport.ServerErrorLogger(logger),
-						zipkinServer,
+					}
+
+					if zipkinTracer != nil {
+						// Zipkin HTTP Server Trace can either be instantiated per endpoint with a
+						// provided operation name or a global tracing service can be instantiated
+						// without an operation name and fed to each Go kit endpoint as ServerOption.
+						// In the latter case, the operation name will be the endpoint's http method.
+						// We demonstrate a global tracing service here.
+						options = append(options, zipkin.HTTPServerTrace(zipkinTracer))
 					}
 	
 					m := bone.New()
@@ -482,7 +484,8 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 			 so likely of the form "host:port". We bake-in certain middlewares,
 			 implementing the client library pattern.`,
 			parser.NamedTypeValue{},
-			`	// Quickly sanitize the instance string.
+			`
+				// Quickly sanitize the instance string.
 						if !strings.HasPrefix(instance, "http") {
 							instance = "http://" + instance
 						}
@@ -491,15 +494,15 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 							return nil, err
 						}
 	
-						// Zipkin HTTP Client Trace can either be instantiated per endpoint with a
-						// provided operation name or a global tracing client can be instantiated
-						// without an operation name and fed to each Go kit endpoint as ClientOption.
-						// In the latter case, the operation name will be the endpoint's http method.
-						zipkinClient := zipkin.HTTPClientTrace(zipkinTracer)
-	
 						// global client middlewares
-						options := []httptransport.ClientOption{
-							zipkinClient,
+						options := []httptransport.ClientOption{}
+
+						if zipkinTracer != nil {
+							// Zipkin HTTP Client Trace can either be instantiated per endpoint with a
+							// provided operation name or a global tracing client can be instantiated
+							// without an operation name and fed to each Go kit endpoint as ClientOption.
+							// In the latter case, the operation name will be the endpoint's http method.
+							options = append(options, zipkin.HTTPClientTrace(zipkinTracer))
 						}
 	
 						e := endpoints.Endpoints{}
@@ -601,7 +604,9 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 								append(options, httptransport.ClientBefore(opentracing.ContextToHTTP(otTracer, logger)))...,
 							).Endpoint()
 							%sEndpoint = opentracing.TraceClient(otTracer, "%s")(%sEndpoint)
-							%sEndpoint = zipkin.TraceEndpoint(zipkinTracer, "%s")(%sEndpoint)
+							if zipkinTracer != nil {
+								%sEndpoint = zipkin.TraceEndpoint(zipkinTracer, "%s")(%sEndpoint)
+							}
 							e.%sEndpoint = %sEndpoint
 						}`,
 				m.Name,
@@ -1101,7 +1106,9 @@ func (sg *ServiceInitGenerator) generateEndpoints(name string, iface *parser.Int
 			method := "%s"
 			%sEndpoint = Make%sEndpoint(svc)
 			%sEndpoint = opentracing.TraceServer(otTracer, method)(%sEndpoint)
-			%sEndpoint = zipkin.TraceEndpoint(zipkinTracer,  method)(%sEndpoint)
+			if zipkinTracer != nil {
+				%sEndpoint = zipkin.TraceEndpoint(zipkinTracer,  method)(%sEndpoint)
+			}
 			%sEndpoint = LoggingMiddleware(log.With(logger, "method", method))(%sEndpoint)
 			ep.%sEndpoint = %sEndpoint
 		}

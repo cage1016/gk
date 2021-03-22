@@ -1,5 +1,7 @@
 module github.com/kujtimiihoxha/gk
 
+go 1.14
+
 require (
 	github.com/Songmu/prompter v0.2.0
 	github.com/alioygur/godash v0.0.0-20160919141744-af6b3da41c5a

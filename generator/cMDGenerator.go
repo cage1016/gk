@@ -171,6 +171,8 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 		parser.NewNameType("zipkinot", "\"github.com/openzipkin-contrib/zipkin-go-opentracing\""),
 		parser.NewNameType("", "\"github.com/openzipkin/zipkin-go\""),
 		parser.NewNameType("zipkinhttp", "\"github.com/openzipkin/zipkin-go/reporter/http\""),
+		parser.NewNameType("", "\"github.com/uber/jaeger-client-go\""),
+		parser.NewNameType("jconfig", "\"github.com/uber/jaeger-client-go/config\""),
 		parser.NewNameType("stdprometheus", "\"github.com/prometheus/client_golang/prometheus\""),
 		parser.NewNameType("", "\"google.golang.org/grpc\""),
 		parser.NewNameType("", "\"google.golang.org/grpc/health\""),
@@ -188,12 +190,14 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 
 	// constants
 	{
+		f.Constants = append(f.Constants, parser.NewNameTypeValue("defJaegerURL", "string", `""`))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("defZipkinV2URL", "string", `""`))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("defServiceName", "string", fmt.Sprintf(`"%s"`, name)))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("defLogLevel", "string", `"error"`))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("defServiceHost", "string", `"localhost"`))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("defHTTPPort", "string", `"8180"`))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("defGRPCPort", "string", `"8181"`))
+		f.Constants = append(f.Constants, parser.NewNameTypeValue("envJaegerURL", "string", `"QS_JAEGER_URL"`))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("envZipkinV2URL", "string", `"QS_ZIPKIN_V2_URL"`))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("envServiceName", "string", fmt.Sprintf(`"QS_%s_SERVICE_NAME"`, strings.ToUpper(name))))
 		f.Constants = append(f.Constants, parser.NewNameTypeValue("envLogLevel", "string", fmt.Sprintf(`"QS_%s_LOG_LEVEL"`, strings.ToUpper(name))))
@@ -212,6 +216,7 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 		parser.NewNameType("httpPort", "string"),
 		parser.NewNameType("grpcPort", "string"),
 		parser.NewNameType("zipkinV2URL", "string"),
+		parser.NewNameType("jaegerURL", "string"),
 	}
 	configStrct.Vars = append(configStrct.Vars, vars...)
 	f.Structs = append(f.Structs, configStrct)
@@ -243,18 +248,20 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 		`var logger log.Logger
 		{
 			logger = log.NewLogfmtLogger(os.Stderr)
-			logger = level.NewFilter(logger, level.AllowInfo())
 			logger = log.With(logger, "ts", log.DefaultTimestampUTC)
-			logger = log.With(logger, "caller", log.DefaultCaller)
 		}
 		cfg := loadConfig(logger)
+		logger = level.NewFilter(logger, level.AllowInfo())
 		logger = log.With(logger, "service", cfg.serviceName)
+		logger = log.With(logger, "caller", log.DefaultCaller)
 		level.Info(logger).Log("version", service.Version, "commitHash", service.CommitHash, "buildTimeStamp", service.BuildTimeStamp)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		tracer := initOpentracing()
+		tracer, closer := initJaeger(cfg.serviceName, cfg.jaegerURL, logger)
+		defer closer.Close()
+
 		zipkinTracer := initZipkin(cfg.serviceName, cfg.httpPort, cfg.zipkinV2URL, logger)
 		service := NewServer(logger)
 		endpoints := endpoints.New(service, logger, tracer, zipkinTracer)
@@ -290,6 +297,7 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 				cfg.httpPort = env(envHTTPPort, defHTTPPort)
 				cfg.grpcPort = env(envGRPCPort, defGRPCPort)
 				cfg.zipkinV2URL = env(envZipkinV2URL, defZipkinV2URL)
+				cfg.jaegerURL = env(envJaegerURL, defJaegerURL)
 				return cfg`,
 		[]parser.NamedTypeValue{
 			parser.NewNameType("logger", "log.Logger"),
@@ -318,33 +326,60 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 
 	// initOpentracing
 	initOpentracingFunc := parser.NewMethod(
-		"initOpentracing",
+		"initJaeger",
 		parser.NamedTypeValue{},
-		`return stdopentracing.GlobalTracer()`,
-		[]parser.NamedTypeValue{},
+		`if url == "" {
+			return opentracing.NoopTracer{}, ioutil.NopCloser(nil)
+		}
+	
+		tracer, closer, err := jconfig.Configuration{
+			ServiceName: svcName,
+			Sampler: &jconfig.SamplerConfig{
+				Type:  jaeger.SamplerTypeConst,
+				Param: 1,
+			},
+			Reporter: &jconfig.ReporterConfig{
+				LocalAgentHostPort: url,
+				LogSpans:           true,
+			},
+		}.NewTracer()
+		if err != nil {
+			level.Error(logger).Log("msg", fmt.Sprintf("Failed to init Jaeger: %s", err))
+			os.Exit(1)
+		}
+	
+		opentracing.SetGlobalTracer(tracer)
+		return tracer, closer`,
 		[]parser.NamedTypeValue{
-			parser.NewNameType("", "stdopentracing.Tracer"),
+			parser.NewNameType("svcName", "string"),
+			parser.NewNameType("url", "string"),
+			parser.NewNameType("logger", "log.Logger"),
+		},
+		[]parser.NamedTypeValue{
+			parser.NewNameType("", "opentracing.Tracer"),
+			parser.NewNameType("", "io.Closer"),
 		},
 	)
 	f.Methods = append(f.Methods, initOpentracingFunc)
 
 	// initZipkin
-	body = `var (
-				err           error
-				hostPort      = fmt.Sprintf("localhost:%s", httpPort)
-				useNoopTracer = (zipkinV2URL == "")
-				reporter      = zipkinhttp.NewReporter(zipkinV2URL)
-			)
-			zEP, _ := zipkin.NewEndpoint(serviceName, hostPort)
-			zipkinTracer, err = zipkin.NewTracer(reporter, zipkin.WithLocalEndpoint(zEP), zipkin.WithNoopTracer(useNoopTracer))
-			if err != nil {
-				logger.Log("err", err)
-				os.Exit(1)
+	body = `if zipkinV2URL != "" {
+				var (
+					err           error
+					hostPort      = fmt.Sprintf("localhost:%s", httpPort)
+					useNoopTracer = (zipkinV2URL == "")
+					reporter      = zipkinhttp.NewReporter(zipkinV2URL)
+				)
+				zEP, _ := zipkin.NewEndpoint(serviceName, hostPort)
+				zipkinTracer, err = zipkin.NewTracer(reporter, zipkin.WithLocalEndpoint(zEP), zipkin.WithNoopTracer(useNoopTracer))
+				if err != nil {
+					logger.Log("err", err)
+					os.Exit(1)
+				}
+				if !useNoopTracer {
+					logger.Log("tracer", "Zipkin", "type", "Native", "URL", zipkinV2URL)
+				}
 			}
-			if !useNoopTracer {
-				logger.Log("tracer", "Zipkin", "type", "Native", "URL", zipkinV2URL)
-			}
-		
 			return`
 	initZipkinFunc := parser.NewMethod(
 		"initZipkin",
