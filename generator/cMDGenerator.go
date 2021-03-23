@@ -164,6 +164,7 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 		parser.NewNameType("", ""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/log\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/log/level\""),
+		parser.NewNameType("", "\"github.com/kelseyhightower/envconfig\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/metrics\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/metrics/prometheus\""),
 		parser.NewNameType("", "\"github.com/go-kit/kit/sd\""),
@@ -188,58 +189,20 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 		parser.NewNameType("transportshttp", "\""+transportsImport+"/http\""),
 	}
 
-	// constants
-	{
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("defJaegerURL", "string", `""`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("defZipkinV2URL", "string", `""`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("defServiceName", "string", fmt.Sprintf(`"%s"`, name)))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("defLogLevel", "string", `"error"`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("defServiceHost", "string", `"localhost"`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("defHTTPPort", "string", `"8180"`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("defGRPCPort", "string", `"8181"`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("envJaegerURL", "string", `"QS_JAEGER_URL"`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("envZipkinV2URL", "string", `"QS_ZIPKIN_V2_URL"`))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("envServiceName", "string", fmt.Sprintf(`"QS_%s_SERVICE_NAME"`, strings.ToUpper(name))))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("envLogLevel", "string", fmt.Sprintf(`"QS_%s_LOG_LEVEL"`, strings.ToUpper(name))))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("envServiceHost", "string", fmt.Sprintf(`"QS_%s_SERVICE_HOST"`, strings.ToUpper(name))))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("envHTTPPort", "string", fmt.Sprintf(`"QS_%s_HTTP_PORT"`, strings.ToUpper(name))))
-		f.Constants = append(f.Constants, parser.NewNameTypeValue("envGRPCPort", "string", fmt.Sprintf(`"QS_%s_GRPC_PORT"`, strings.ToUpper(name))))
-	}
-
 	// config struct
-	configStrct := parser.NewStruct("config", []parser.NamedTypeValue{})
-	configStrct.Name = "config"
+	configStrct := parser.NewStruct("Config", []parser.NamedTypeValue{})
+	configStrct.Name = "Config"
 	vars := []parser.NamedTypeValue{
-		parser.NewNameType("serviceName", "string"),
-		parser.NewNameType("logLevel", "string"),
-		parser.NewNameType("serviceHost", "string"),
-		parser.NewNameType("httpPort", "string"),
-		parser.NewNameType("grpcPort", "string"),
-		parser.NewNameType("zipkinV2URL", "string"),
-		parser.NewNameType("jaegerURL", "string"),
+		parser.NewNameTypeValueWithTags("ServiceName", "string", "", fmt.Sprintf(`envconfig:"QS_SERVICE_NAME" default:"%s"`, name)),
+		parser.NewNameTypeValueWithTags("ServiceHost", "string", "", `envconfig:"QS_SERVICE_HOST" default:"localhost"`),
+		parser.NewNameTypeValueWithTags("LogLevel", "string", "", `envconfig:"QS_LOG_LEVEL" default:"error"`),
+		parser.NewNameTypeValueWithTags("HttpPort", "string", "", `envconfig:"QS_HTTP_PORT" default:"8180"`),
+		parser.NewNameTypeValueWithTags("GrpcPort", "string", "", `envconfig:"QS_GRPC_PORT" default:"8181"`),
+		parser.NewNameTypeValueWithTags("ZipkinV2URL", "string", "", `envconfig:"QS_ZIPKIN_V2_URL"`),
+		parser.NewNameTypeValueWithTags("JaegerURL", "string", "", `envconfig:"QS_JAEGER_URL"`),
 	}
 	configStrct.Vars = append(configStrct.Vars, vars...)
 	f.Structs = append(f.Structs, configStrct)
-
-	// env function
-	envFunc := parser.NewMethodWithComment(
-		"env",
-		`Env reads specified environment variable. If no value has been found,
-		fallback is returned.`,
-		parser.NamedTypeValue{},
-		`if v := os.Getenv(key); v != "" {
-					return v
-				}
-				return fallback`,
-		[]parser.NamedTypeValue{
-			parser.NewNameType("key", "string"),
-			parser.NewNameType("fallback", "string"),
-		},
-		[]parser.NamedTypeValue{
-			parser.NewNameType("", "string"),
-		},
-	)
-	f.Methods = append(f.Methods, envFunc)
 
 	// main function
 	mainFunc := parser.NewMethod(
@@ -250,29 +213,36 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 			logger = log.NewLogfmtLogger(os.Stderr)
 			logger = log.With(logger, "ts", log.DefaultTimestampUTC)
 		}
-		cfg := loadConfig(logger)
+		
+		var cfg Config
+		err := envconfig.Process("qs", &cfg)
+		if err != nil {
+			level.Error(logger).Log("err", err)
+			os.Exit(1)
+		}
+
 		logger = level.NewFilter(logger, level.AllowInfo())
-		logger = log.With(logger, "service", cfg.serviceName)
+		logger = log.With(logger, "service", cfg.ServiceName)
 		logger = log.With(logger, "caller", log.DefaultCaller)
 		level.Info(logger).Log("version", service.Version, "commitHash", service.CommitHash, "buildTimeStamp", service.BuildTimeStamp)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		tracer, closer := initJaeger(cfg.serviceName, cfg.jaegerURL, logger)
+		tracer, closer := initJaeger(cfg.ServiceName, cfg.JaegerURL, logger)
 		defer closer.Close()
 
-		zipkinTracer := initZipkin(cfg.serviceName, cfg.httpPort, cfg.zipkinV2URL, logger)
+		zipkinTracer := initZipkin(cfg.ServiceName, cfg.HttpPort, cfg.ZipkinV2URL, logger)
 		service := NewServer(logger)
 		endpoints := endpoints.New(service, logger, tracer, zipkinTracer)
 
 		hs := health.NewServer()
-		hs.SetServingStatus(cfg.serviceName, healthgrpc.HealthCheckResponse_SERVING)
+		hs.SetServingStatus(cfg.ServiceName, healthgrpc.HealthCheckResponse_SERVING)
 
 		wg := &sync.WaitGroup{}
 
-		go startHTTPServer(ctx, wg, endpoints, tracer, zipkinTracer, cfg.httpPort, logger)
-		go startGRPCServer(ctx, wg, endpoints, tracer, zipkinTracer, cfg.grpcPort, hs, logger)
+		go startHTTPServer(ctx, wg, endpoints, tracer, zipkinTracer, cfg.HttpPort, logger)
+		go startGRPCServer(ctx, wg, endpoints, tracer, zipkinTracer, cfg.GrpcPort, hs, logger)
 	
 		c := make(chan os.Signal, 1)
 		signal.Notify(c, os.Interrupt)
@@ -286,27 +256,6 @@ func (cg *CMDGenerator) generateCMD(name string, iface *parser.Interface) error 
 		[]parser.NamedTypeValue{},
 	)
 	f.Methods = append(f.Methods, mainFunc)
-
-	// loadConfig function
-	loadConfigFunc := parser.NewMethod(
-		"loadConfig",
-		parser.NamedTypeValue{},
-		`cfg.serviceName = env(envServiceName, defServiceName)
-				cfg.logLevel = env(envLogLevel, defLogLevel)
-				cfg.serviceHost = env(envServiceHost, defServiceHost)
-				cfg.httpPort = env(envHTTPPort, defHTTPPort)
-				cfg.grpcPort = env(envGRPCPort, defGRPCPort)
-				cfg.zipkinV2URL = env(envZipkinV2URL, defZipkinV2URL)
-				cfg.jaegerURL = env(envJaegerURL, defJaegerURL)
-				return cfg`,
-		[]parser.NamedTypeValue{
-			parser.NewNameType("logger", "log.Logger"),
-		},
-		[]parser.NamedTypeValue{
-			parser.NewNameType("cfg", "config"),
-		},
-	)
-	f.Methods = append(f.Methods, loadConfigFunc)
 
 	// newService
 	body := `service := service.New(logger)
