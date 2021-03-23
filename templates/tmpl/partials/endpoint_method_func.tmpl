@@ -3,5 +3,11 @@
 	if err != nil {
 		return
 	}
+	{{ $length := len $.Response.Vars }}
+	{{ if and (eq $length 1) (eq (index $.Response.Vars 0).Name "Err") }}
+	_ = resp.({{.Response.Name}})
+	return nil
+	{{ else }}
 	response := resp.({{.Response.Name}})
 	return {{range $i,$v := $.Response.Vars}}{{if ne $v.Name "Err" }}response.{{$v.Name}}{{if not (last $i $.Calling.Results)}},{{end}}{{end}}{{end}} nil
+	{{ end }}

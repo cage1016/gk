@@ -14,6 +14,7 @@ type NamedTypeValue struct {
 	Value    string
 	HasValue bool
 	Comment  string
+	Tags     string
 }
 
 func NewNameType(name string, tp string) NamedTypeValue {
@@ -49,6 +50,16 @@ func NewNameTypeValueWithComment(name string, tp string, vl string, comment stri
 		HasValue: true,
 		Value:    vl,
 		Comment:  comment,
+	}
+}
+
+func NewNameTypeValueWithTags(name string, tp string, vl string, tags string) NamedTypeValue {
+	return NamedTypeValue{
+		Name:     name,
+		Type:     tp,
+		HasValue: true,
+		Value:    vl,
+		Tags:     tags,
 	}
 }
 

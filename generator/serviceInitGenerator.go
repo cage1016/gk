@@ -645,9 +645,6 @@ func (sg *ServiceInitGenerator) generateHttpTransport(name string, iface *parser
 		},
 	))
 
-	// contentType
-	handlerFile.Constants = append(handlerFile.Constants, parser.NewNameTypeValue("contentType", "string", `"application/json"`))
-
 	path, err := te.ExecuteString(viper.GetString("transports.path"), map[string]string{
 		"ServiceName":   name,
 		"TransportType": "http",
@@ -1033,13 +1030,17 @@ func (sg *ServiceInitGenerator) generateEndpoints(name string, iface *parser.Int
 		for _, p := range v.Parameters {
 			if p.Type != "context.Context" {
 				n := strings.ToUpper(string(p.Name[0])) + p.Name[1:]
-				reqPrams = append(reqPrams, parser.NewNameType(n, p.Type))
+				reqPrams = append(reqPrams, parser.NewNameTypeValueWithTags(n, p.Type, "", fmt.Sprintf(`json:"%s"`, p.Name)))
 			}
 		}
 		resultPrams := []parser.NamedTypeValue{}
 		for _, p := range v.Results {
 			n := strings.ToUpper(string(p.Name[0])) + p.Name[1:]
-			resultPrams = append(resultPrams, parser.NewNameType(n, p.Type))
+			if p.Type == "error" {
+				resultPrams = append(resultPrams, parser.NewNameTypeValueWithTags(n, p.Type, "", `json:"-"`))
+			} else {
+				resultPrams = append(resultPrams, parser.NewNameTypeValueWithTags(n, p.Type, "", fmt.Sprintf(`json:"%s"`, p.Name)))
+			}
 		}
 		req := parser.NewStructWithComment(
 			v.Name+"Request",
@@ -1187,13 +1188,17 @@ func (sg *ServiceInitGenerator) generateEndpointsRequests(name string, iface *pa
 		for _, p := range v.Parameters {
 			if p.Type != "context.Context" {
 				n := strings.ToUpper(string(p.Name[0])) + p.Name[1:]
-				reqPrams = append(reqPrams, parser.NewNameType(n, p.Type))
+				reqPrams = append(reqPrams, parser.NewNameTypeValueWithTags(n, p.Type, "", fmt.Sprintf(`json:"%s"`, p.Name)))
 			}
 		}
 		resultPrams := []parser.NamedTypeValue{}
 		for _, p := range v.Results {
 			n := strings.ToUpper(string(p.Name[0])) + p.Name[1:]
-			resultPrams = append(resultPrams, parser.NewNameType(n, p.Type))
+			if p.Type == "error" {
+				resultPrams = append(resultPrams, parser.NewNameTypeValueWithTags(n, p.Type, "", `json:"-"`))
+			} else {
+				resultPrams = append(resultPrams, parser.NewNameTypeValueWithTags(n, p.Type, "", fmt.Sprintf(`json:"%s"`, p.Name)))
+			}
 		}
 		req := parser.NewStructWithComment(
 			v.Name+"Request",
@@ -1280,13 +1285,17 @@ func (sg *ServiceInitGenerator) generateEndpointsResponse(name string, iface *pa
 		for _, p := range v.Parameters {
 			if p.Type != "context.Context" {
 				n := strings.ToUpper(string(p.Name[0])) + p.Name[1:]
-				reqPrams = append(reqPrams, parser.NewNameType(n, p.Type))
+				reqPrams = append(reqPrams, parser.NewNameTypeValueWithTags(n, p.Type, "", fmt.Sprintf(`json:"%s"`, p.Name)))
 			}
 		}
 		resultPrams := []parser.NamedTypeValue{}
 		for _, p := range v.Results {
 			n := strings.ToUpper(string(p.Name[0])) + p.Name[1:]
-			resultPrams = append(resultPrams, parser.NewNameType(n, p.Type))
+			if p.Type == "error" {
+				resultPrams = append(resultPrams, parser.NewNameTypeValueWithTags(n, p.Type, "", `json:"-"`))
+			} else {
+				resultPrams = append(resultPrams, parser.NewNameTypeValueWithTags(n, p.Type, "", fmt.Sprintf(`json:"%s"`, p.Name)))
+			}
 		}
 		var isOnlyErrRes = false
 		if len(resultPrams) == 1 {

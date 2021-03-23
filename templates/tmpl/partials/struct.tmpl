@@ -1,4 +1,4 @@
 {{if ne .Comment ""}}{{.Comment}}{{end}}type {{.Name}} struct {
  {{range $i,$v := .Vars}}
-  {{$v.Name}} {{$v.Type}} `json:"{{$v.Comment}}"` {{end}}
+  {{$v.Name}} {{$v.Type}} {{if ne $v.Tags ""}}`{{$v.Tags}}`{{end}} {{if ne $v.Comment ""}}// {{$v.Comment}}{{end}} {{end}}
  }
